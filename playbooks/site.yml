@@ -1,0 +1,19 @@
+---
+- name: Prepare standalone Server A infrastructure
+  hosts: serverA
+  become: true
+  gather_facts: true
+  roles:
+    - common
+    - bind9
+    - docker_engine
+    - ssl
+    - website
+    - monitoring
+
+- name: Deploy Moodle stack after source restoration
+  hosts: serverA
+  become: true
+  gather_facts: false
+  roles:
+    - moodle

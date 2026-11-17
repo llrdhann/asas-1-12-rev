@@ -1,0 +1,75 @@
+services:
+  mariadb:
+    image: "{{ mariadb_image }}"
+    container_name: "{{ moodle_container_db }}"
+    restart: unless-stopped
+    environment:
+      MARIADB_ROOT_PASSWORD: "${MARIADB_ROOT_PASSWORD}"
+      MARIADB_DATABASE: "{{ moodle_db_name }}"
+      MARIADB_USER: "{{ moodle_db_user }}"
+      MARIADB_PASSWORD: "${MARIADB_PASSWORD}"
+    volumes:
+      - mariadb_data:/var/lib/mysql
+    networks: [moodle_net]
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+
+  moodle:
+    build:
+      context: ./php
+    image: "{{ moodle_php_image }}"
+    container_name: "{{ moodle_container_php }}"
+    restart: unless-stopped
+    volumes:
+      - ./moodle:/var/www/html
+      - ./moodledata:/var/moodledata
+    depends_on:
+      mariadb:
+        condition: service_healthy
+    networks: [moodle_net]
+
+  mysql-exporter:
+    image: "{{ mysql_exporter_image }}"
+    user: "65534:65534"
+    container_name: moodle-mysql-exporter
+    restart: unless-stopped
+    command:
+      - "--config.my-cnf=/etc/mysql-exporter/.my.cnf"
+      - "--web.listen-address=:9104"
+    ports:
+      - "127.0.0.1:{{ mysql_exporter_port }}:9104"
+    volumes:
+      - ./mysql-exporter.cnf:/etc/mysql-exporter/.my.cnf:ro
+    depends_on:
+      mariadb:
+        condition: service_healthy
+    networks: [moodle_net]
+
+  nginx:
+    image: "{{ moodle_nginx_image }}"
+    container_name: "{{ moodle_container_nginx }}"
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./moodle:/var/www/html:ro
+      - ./web:/var/www/web:ro
+      - ./nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./ssl:/etc/nginx/ssl:ro
+    depends_on: [moodle]
+    networks:
+      moodle_net:
+        aliases:
+          - e-learning.lingga-ramadhan.net
+
+networks:
+  moodle_net:
+    name: moodle_net
+
+volumes:
+  mariadb_data:
+    name: moodle_mariadb_data

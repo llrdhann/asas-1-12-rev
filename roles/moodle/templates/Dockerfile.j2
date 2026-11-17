@@ -1,0 +1,17 @@
+FROM php:8.3-fpm
+COPY serverA-ca.crt /usr/local/share/ca-certificates/serverA-ca.crt
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ca-certificates libicu-dev libzip-dev libpng-dev libjpeg-dev libfreetype6-dev \
+    libxml2-dev libonig-dev libcurl4-openssl-dev unzip git \
+    && docker-php-ext-configure gd --with-freetype --with-jpeg \
+    && docker-php-ext-install mysqli pdo_mysql gd intl zip soap exif opcache bcmath \
+    && pecl install redis && docker-php-ext-enable redis \
+    && update-ca-certificates && rm -rf /var/lib/apt/lists/*
+RUN printf '%s\n' \
+    'max_input_vars=5000' \
+    'memory_limit=512M' \
+    'upload_max_filesize=256M' \
+    'post_max_size=256M' \
+    'curl.cainfo=/etc/ssl/certs/ca-certificates.crt' \
+    'openssl.cafile=/etc/ssl/certs/ca-certificates.crt' \
+    > /usr/local/etc/php/conf.d/moodle.ini

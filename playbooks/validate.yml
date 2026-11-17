@@ -1,0 +1,70 @@
+---
+- name: Validate standalone Server A services
+  hosts: serverA
+  become: true
+  gather_facts: false
+  tasks:
+    - name: Verify Bind9 config
+      ansible.builtin.command: named-checkconf
+      changed_when: false
+
+    - name: Verify DNS forward zone
+      ansible.builtin.command: "named-checkzone {{ bind_zone_name }} {{ bind_zone_file }}"
+      changed_when: false
+
+    - name: Verify DNS reverse zone
+      ansible.builtin.command: "named-checkzone {{ bind_reverse_zone }} {{ bind_reverse_file }}"
+      changed_when: false
+
+    - name: Query local forward DNS
+      ansible.builtin.command: "dig +short @127.0.0.1 e-learning.lingga-ramadhan.net A"
+      register: dns_result
+      changed_when: false
+
+    - name: Assert DNS resolves to configured Server A IP
+      ansible.builtin.assert:
+        that: server_ip in dns_result.stdout_lines
+
+    - name: Verify Docker Compose config
+      ansible.builtin.command:
+        cmd: docker compose -f {{ moodle_root }}/docker-compose.yml config --quiet
+      changed_when: false
+
+    - name: Verify containers are running
+      community.docker.docker_container_info:
+        name: "{{ item }}"
+      loop:
+        - "{{ moodle_container_db }}"
+        - "{{ moodle_container_php }}"
+        - "{{ moodle_container_nginx }}"
+      register: container_checks
+
+    - name: Assert all Moodle containers are running
+      ansible.builtin.assert:
+        that: item.container.State.Running | default(false)
+      loop: "{{ container_checks.results }}"
+
+    - name: Verify Moodle HTTPS endpoint locally with correct Host and TLS SNI
+      ansible.builtin.command:
+        argv:
+          - curl
+          - --silent
+          - --show-error
+          - --output
+          - /dev/null
+          - --write-out
+          - "%{http_code}"
+          - --max-time
+          - "15"
+          - --insecure
+          - --resolve
+          - "e-learning.lingga-ramadhan.net:443:127.0.0.1"
+          - "https://e-learning.lingga-ramadhan.net/"
+      register: moodle_https_status
+      changed_when: false
+
+    - name: Assert Moodle HTTPS returned an expected application status
+      ansible.builtin.assert:
+        that:
+          - moodle_https_status.stdout | int in [200, 301, 302, 303, 403]
+        fail_msg: "Moodle HTTPS returned HTTP {{ moodle_https_status.stdout }} on Server A."

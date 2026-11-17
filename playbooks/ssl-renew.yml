@@ -1,0 +1,9 @@
+---
+- name: Regenerate self-signed certificate on Server A only
+  hosts: serverA
+  become: true
+  gather_facts: true
+  vars:
+    ssl_force_regenerate: true
+  roles:
+    - ssl

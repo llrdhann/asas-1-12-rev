@@ -1,0 +1,10 @@
+---
+- name: Validate and reload Bind9
+  ansible.builtin.command: named-checkconf
+  changed_when: false
+  notify: Reload Bind9
+
+- name: Reload Bind9
+  ansible.builtin.systemd:
+    name: "{{ bind_service }}"
+    state: reloaded

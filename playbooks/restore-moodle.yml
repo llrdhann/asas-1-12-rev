@@ -1,0 +1,302 @@
+---
+- name: Restore the verified Moodle source, moodledata and SQL onto fresh Server A
+  hosts: serverA
+  become: true
+  gather_facts: false
+  vars:
+    confirm_moodle_restore: false
+    expected_restore_confirmation: "RESTORE_MOODLE_TO_{{ server_ip }}"
+    restore_confirmation_text: ""
+    restore_backup_dir: /opt/moodle/backup
+    restore_stage_dir: /srv/moodle/restore-staging
+    restore_sql_file: "{{ restore_backup_dir }}/moodle.sql.gz"
+    restore_source_file: "{{ restore_backup_dir }}/moodle-source.tar.gz"
+    restore_data_file: "{{ restore_backup_dir }}/moodledata.tar.gz"
+  tasks:
+    - name: Require explicit confirmation for Server A only
+      ansible.builtin.assert:
+        that:
+          - inventory_hostname == 'serverA'
+          - server_role == 'primary'
+          - confirm_moodle_restore | bool
+          - restore_confirmation_text == expected_restore_confirmation
+        fail_msg: >-
+          Restore dibatalkan. Target harus Server A dan konfirmasi harus persis
+          RESTORE_MOODLE_TO_{{ server_ip }}.
+
+    - name: Verify the three original backup files exist
+      ansible.builtin.stat:
+        path: "{{ item }}"
+      loop:
+        - "{{ restore_sql_file }}"
+        - "{{ restore_source_file }}"
+        - "{{ restore_data_file }}"
+      register: restore_files
+
+    - name: Require all source backups
+      ansible.builtin.assert:
+        that:
+          - restore_files.results | map(attribute='stat.exists') | min
+        fail_msg: "Backup SQL/source/moodledata tidak lengkap di {{ restore_backup_dir }}."
+
+    - name: Calculate source backup checksums
+      ansible.builtin.stat:
+        path: "{{ item.path }}"
+        checksum_algorithm: sha256
+      loop:
+        - { path: "{{ restore_sql_file }}", expected: "{{ moodle_sql_sha256 }}" }
+        - { path: "{{ restore_source_file }}", expected: "{{ moodle_source_sha256 }}" }
+        - { path: "{{ restore_data_file }}", expected: "{{ moodledata_sha256 }}" }
+      register: restore_hashes
+
+    - name: Reject any backup that differs from the audited source
+      ansible.builtin.assert:
+        that:
+          - restore_hashes.results[0].stat.checksum == moodle_sql_sha256
+          - restore_hashes.results[1].stat.checksum == moodle_source_sha256
+          - restore_hashes.results[2].stat.checksum == moodledata_sha256
+        fail_msg: "Checksum backup tidak cocok. Tidak ada data yang dipulihkan."
+
+    - name: Ensure the destination Moodle directories exist
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: directory
+        owner: root
+        group: root
+        mode: "0755"
+      loop:
+        - "{{ moodle_code_dir }}"
+        - "{{ moodle_data_dir }}"
+
+    - name: Check destination code directory before restore
+      ansible.builtin.find:
+        paths: "{{ moodle_code_dir }}"
+        recurse: true
+        hidden: true
+      register: existing_code
+
+    - name: Check destination moodledata directory before restore
+      ansible.builtin.find:
+        paths: "{{ moodle_data_dir }}"
+        recurse: true
+        hidden: true
+      register: existing_data
+
+    - name: Refuse to overwrite any existing Moodle installation or data
+      ansible.builtin.assert:
+        that:
+          - existing_code.matched | int == 0
+          - existing_data.matched | int == 0
+        fail_msg: >-
+          Direktori tujuan tidak kosong. Restore otomatis berhenti agar instalasi
+          atau data yang sudah ada tidak tertimpa. Backup/bersihkan secara manual
+          setelah memastikan isinya memang boleh diganti.
+
+    - name: Recreate clean staging directory
+      ansible.builtin.file:
+        path: "{{ restore_stage_dir }}"
+        state: absent
+
+    - name: Create protected staging directory
+      ansible.builtin.file:
+        path: "{{ restore_stage_dir }}"
+        state: directory
+        owner: root
+        group: root
+        mode: "0700"
+
+    - name: Extract verified Moodle source archive
+      ansible.builtin.unarchive:
+        src: "{{ restore_source_file }}"
+        dest: "{{ restore_stage_dir }}"
+        remote_src: true
+
+    - name: Extract verified Moodledata archive
+      ansible.builtin.unarchive:
+        src: "{{ restore_data_file }}"
+        dest: "{{ restore_stage_dir }}"
+        remote_src: true
+
+    - name: Verify the expected source archive layout
+      ansible.builtin.stat:
+        path: "{{ restore_stage_dir }}/moodle/public/version.php"
+      register: staged_version
+
+    - name: Verify the expected moodledata archive layout
+      ansible.builtin.stat:
+        path: "{{ restore_stage_dir }}/moodledata/filedir"
+      register: staged_filedir
+
+    - name: Require valid Moodle source and moodledata layout
+      ansible.builtin.assert:
+        that:
+          - staged_version.stat.exists
+          - staged_filedir.stat.isdir | default(false)
+        fail_msg: "Struktur archive tidak sesuai: butuh moodle/public/version.php dan moodledata/filedir."
+
+    - name: Verify Moodle release in the extracted source
+      ansible.builtin.command:
+        argv:
+          - grep
+          - -F
+          - "{{ moodle_version_expected }}"
+          - "{{ restore_stage_dir }}/moodle/public/version.php"
+      changed_when: false
+
+    - name: Verify Moodle build in the extracted source
+      ansible.builtin.command:
+        argv:
+          - grep
+          - -F
+          - "{{ moodle_build_expected }}"
+          - "{{ restore_stage_dir }}/moodle/public/version.php"
+      changed_when: false
+
+    - name: Count SQL tables in the compressed source dump
+      ansible.builtin.command:
+        argv:
+          - bash
+          - -o
+          - pipefail
+          - -c
+          - "gzip -dc {{ restore_sql_file | quote }} | grep -c '^CREATE TABLE'"
+      register: source_sql_tables
+      changed_when: false
+
+    - name: Require a non-empty SQL dump
+      ansible.builtin.assert:
+        that:
+          - source_sql_tables.stdout | int > 0
+        fail_msg: "Dump SQL tidak memiliki CREATE TABLE. Import dibatalkan."
+
+    - name: Require protected database credentials
+      ansible.builtin.assert:
+        that:
+          - vault_moodle_db_password is defined
+          - vault_moodle_db_password | length >= 20
+        fail_msg: "Isi dan encrypt Vault sebelum restore database."
+      no_log: true
+
+    - name: Check that the prepared local MariaDB container is running
+      ansible.builtin.command:
+        argv:
+          - docker
+          - inspect
+          - -f
+          - "{{ '{{' }}.State.Running{{ '}}' }}"
+          - "{{ moodle_container_db }}"
+      register: db_container_running
+      changed_when: false
+
+    - name: Require local MariaDB container to be running
+      ansible.builtin.assert:
+        that:
+          - db_container_running.stdout == 'true'
+        fail_msg: "MariaDB Server A belum berjalan. Jalankan prepare-moodle-db.yml terlebih dahulu."
+
+    - name: Check whether the target Moodle database already contains tables
+      ansible.builtin.command:
+        argv:
+          - docker
+          - exec
+          - -e
+          - "MYSQL_PWD={{ vault_moodle_db_password }}"
+          - "{{ moodle_container_db }}"
+          - mariadb
+          - -N
+          - -u
+          - "{{ moodle_db_user }}"
+          - -e
+          - "SHOW TABLES"
+          - "{{ moodle_db_name }}"
+      register: target_db_tables
+      changed_when: false
+      no_log: true
+
+    - name: Refuse to import into a non-empty database
+      ansible.builtin.assert:
+        that:
+          - target_db_tables.stdout | trim == ''
+        fail_msg: "Database tujuan tidak kosong. SQL tidak diimpor agar data yang ada tidak tertimpa."
+      no_log: true
+
+    - name: Copy the original Moodle source into the live application directory
+      ansible.builtin.copy:
+        src: "{{ restore_stage_dir }}/moodle/"
+        dest: "{{ moodle_code_dir }}/"
+        remote_src: true
+        owner: root
+        group: www-data
+        directory_mode: "0755"
+        mode: preserve
+
+    - name: Set Moodle source directories readable by PHP and Nginx
+      ansible.builtin.file:
+        path: "{{ moodle_code_dir }}"
+        state: directory
+        recurse: true
+        owner: root
+        group: www-data
+        mode: "u=rwX,g=rX,o=rX"
+
+    - name: Copy the original Moodledata into the live data directory
+      ansible.builtin.copy:
+        src: "{{ restore_stage_dir }}/moodledata/"
+        dest: "{{ moodle_data_dir }}/"
+        remote_src: true
+        owner: "33"
+        group: "33"
+        directory_mode: "0770"
+        mode: preserve
+
+    - name: Enforce Moodledata ownership and private permissions
+      ansible.builtin.file:
+        path: "{{ moodle_data_dir }}"
+        state: directory
+        recurse: true
+        owner: "33"
+        group: "33"
+        mode: "u=rwX,g=rwX,o-rwx"
+
+    - name: Import the verified SQL dump into the empty local Moodle database
+      ansible.builtin.shell: |
+        set -o pipefail
+        gzip -dc {{ restore_sql_file | quote }} | docker exec -e MYSQL_PWD="$MYSQL_PWD" -i {{ moodle_container_db | quote }} mariadb -u {{ moodle_db_user | quote }} {{ moodle_db_name | quote }}
+      args:
+        executable: /bin/bash
+      environment:
+        MYSQL_PWD: "{{ vault_moodle_db_password }}"
+      no_log: true
+
+    - name: Verify that restored database contains the expected number of tables
+      ansible.builtin.command:
+        argv:
+          - docker
+          - exec
+          - -e
+          - "MYSQL_PWD={{ vault_moodle_db_password }}"
+          - "{{ moodle_container_db }}"
+          - mariadb
+          - -N
+          - -u
+          - "{{ moodle_db_user }}"
+          - -e
+          - "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='{{ moodle_db_name }}'"
+      register: restored_table_count
+      changed_when: false
+      no_log: true
+
+    - name: Confirm SQL import created tables
+      ansible.builtin.assert:
+        that:
+          - restored_table_count.stdout | int >= source_sql_tables.stdout | int
+        fail_msg: "Jumlah tabel hasil import lebih sedikit dari dump. Periksa log MariaDB sebelum lanjut."
+      no_log: true
+
+    - name: Report successful file and database restore
+      ansible.builtin.debug:
+        msg: >-
+          Source Moodle dan moodledata telah dipulihkan ke Server A; SQL telah diimpor
+          ke database lokal. config.php belum dibuat oleh role Moodle. Lanjutkan dengan
+          playbooks/site.yml agar Ansible membuat config.php, membangun PHP image,
+          menjalankan Nginx/PHP, lalu jalankan playbooks/validate.yml.

@@ -1,0 +1,7 @@
+---
+- name: Recreate Moodle containers
+  community.docker.docker_compose_v2:
+    project_src: "{{ moodle_root }}"
+    state: present
+    build: always
+  no_log: true

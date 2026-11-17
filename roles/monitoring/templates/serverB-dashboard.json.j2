@@ -1,0 +1,534 @@
+{
+  "annotations": {
+    "list": []
+  },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [],
+  "panels": [
+    {
+      "type": "stat",
+      "title": "Server B - Node Exporter",
+      "id": 1,
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 0,
+        "y": 0
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus-peer"
+      },
+      "targets": [
+        {
+          "expr": "up{job=\"peer_node_exporter\"}",
+          "refId": "A",
+          "instant": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {
+                  "text": "DOWN",
+                  "color": "red"
+                },
+                "1": {
+                  "text": "UP",
+                  "color": "green"
+                }
+              }
+            }
+          ],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "green",
+                "value": 1
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Moodle B - HTTP Probe",
+      "id": 2,
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 6,
+        "y": 0
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus-peer"
+      },
+      "targets": [
+        {
+          "expr": "probe_success{job=\"peer_moodle_http\"}",
+          "refId": "A",
+          "instant": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {
+                  "text": "DOWN",
+                  "color": "red"
+                },
+                "1": {
+                  "text": "UP",
+                  "color": "green"
+                }
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "type": "stat",
+      "title": "MariaDB B - mysql_up",
+      "id": 3,
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 12,
+        "y": 0
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus-peer"
+      },
+      "targets": [
+        {
+          "expr": "mysql_up{job=\"peer_mariadb\"}",
+          "refId": "A",
+          "instant": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {
+                  "text": "DOWN",
+                  "color": "red"
+                },
+                "1": {
+                  "text": "UP",
+                  "color": "green"
+                }
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Active Alerts for Server B",
+      "id": 4,
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 18,
+        "y": 0
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus-peer"
+      },
+      "targets": [
+        {
+          "expr": "count(ALERTS{alertstate=\"firing\",peer=\"serverB\"}) or vector(0)",
+          "refId": "A",
+          "instant": true
+        }
+      ]
+    },
+    {
+      "type": "gauge",
+      "title": "CPU Usage (%)",
+      "id": 5,
+      "gridPos": {
+        "h": 7,
+        "w": 8,
+        "x": 0,
+        "y": 4
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus-peer"
+      },
+      "targets": [
+        {
+          "expr": "100 - avg by(instance) (rate(node_cpu_seconds_total{job=\"peer_node_exporter\",mode=\"idle\"}[5m])) * 100",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "min": 0,
+          "max": 100,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 70
+              },
+              {
+                "color": "red",
+                "value": 85
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "type": "gauge",
+      "title": "RAM Usage (%)",
+      "id": 6,
+      "gridPos": {
+        "h": 7,
+        "w": 8,
+        "x": 8,
+        "y": 4
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus-peer"
+      },
+      "targets": [
+        {
+          "expr": "100 * (1 - node_memory_MemAvailable_bytes{job=\"peer_node_exporter\"} / node_memory_MemTotal_bytes{job=\"peer_node_exporter\"})",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "min": 0,
+          "max": 100,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 80
+              },
+              {
+                "color": "red",
+                "value": 90
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "type": "gauge",
+      "title": "Root Disk Usage (%)",
+      "id": 7,
+      "gridPos": {
+        "h": 7,
+        "w": 8,
+        "x": 16,
+        "y": 4
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus-peer"
+      },
+      "targets": [
+        {
+          "expr": "100 * (1 - node_filesystem_avail_bytes{job=\"peer_node_exporter\",mountpoint=\"/\",fstype!~\"tmpfs|overlay\"} / node_filesystem_size_bytes{job=\"peer_node_exporter\",mountpoint=\"/\",fstype!~\"tmpfs|overlay\"})",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "min": 0,
+          "max": 100,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 80
+              },
+              {
+                "color": "red",
+                "value": 90
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Moodle Response Time (seconds)",
+      "id": 8,
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 11
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus-peer"
+      },
+      "targets": [
+        {
+          "expr": "probe_duration_seconds{job=\"peer_moodle_http\"}",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s"
+        }
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "MariaDB Active Connections",
+      "id": 9,
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 11
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus-peer"
+      },
+      "targets": [
+        {
+          "expr": "mysql_global_status_threads_connected{job=\"peer_mariadb\"}",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "MariaDB Running Threads",
+      "id": 12,
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 27
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus-peer"
+      },
+      "targets": [
+        {
+          "expr": "mysql_global_status_threads_running{job=\"peer_mariadb\"}",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "MariaDB Queries per Second",
+      "id": 10,
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 27
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus-peer"
+      },
+      "targets": [
+        {
+          "expr": "rate(mysql_global_status_queries{job=\"peer_mariadb\"}[5m])",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "MariaDB Slow Queries (increase 10m)",
+      "id": 11,
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 35
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus-peer"
+      },
+      "targets": [
+        {
+          "expr": "increase(mysql_global_status_slow_queries{job=\"peer_mariadb\"}[10m])",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "type": "stat",
+      "title": "Moodle HTTP Status Code",
+      "id": 13,
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 6,
+        "y": 43
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus-peer"
+      },
+      "targets": [
+        {
+          "expr": "probe_http_status_code{job=\\\"peer_moodle_http\\\"}",
+          "refId": "A",
+          "instant": true
+        }
+      ]
+    },
+    {
+      "type": "stat",
+      "title": "Moodle SSL Days Remaining",
+      "id": 14,
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 12,
+        "y": 43
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus-peer"
+      },
+      "targets": [
+        {
+          "expr": "(probe_ssl_earliest_cert_expiry{job=\\\"peer_moodle_http\\\"} - time()) / 86400",
+          "refId": "A",
+          "instant": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "d"
+        }
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Server B Network Receive (bytes/sec)",
+      "id": 15,
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 51
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus-peer"
+      },
+      "targets": [
+        {
+          "expr": "rate(node_network_receive_bytes_total{job=\\\"peer_node_exporter\\\",device!~\\\"lo|docker.*|veth.*\\\"}[5m])",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "Bps"
+        }
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Server B Network Transmit (bytes/sec)",
+      "id": 16,
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 51
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus-peer"
+      },
+      "targets": [
+        {
+          "expr": "rate(node_network_transmit_bytes_total{job=\\\"peer_node_exporter\\\",device!~\\\"lo|docker.*|veth.*\\\"}[5m])",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "Bps"
+        }
+      }
+    }
+  ],
+  "refresh": "30s",
+  "schemaVersion": 39,
+  "tags": [
+    "ansible",
+    "serverB",
+    "cross-monitoring"
+  ],
+  "templating": {
+    "list": []
+  },
+  "time": {
+    "from": "now-1h",
+    "to": "now"
+  },
+  "timezone": "browser",
+  "title": "Server B - Infrastructure, Moodle & MariaDB",
+  "uid": "serverb-cross-monitoring",
+  "version": 1
+}

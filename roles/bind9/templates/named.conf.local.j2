@@ -1,0 +1,11 @@
+zone "{{ bind_zone_name }}" {
+    type master;
+    file "{{ bind_zone_file }}";
+    allow-update { none; };
+};
+
+zone "{{ bind_reverse_zone }}" {
+    type master;
+    file "{{ bind_reverse_file }}";
+    allow-update { none; };
+};

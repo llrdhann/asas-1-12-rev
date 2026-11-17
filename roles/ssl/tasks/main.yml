@@ -1,0 +1,97 @@
+---
+- name: Ensure OpenSSL is installed
+  ansible.builtin.apt:
+    name: openssl
+    state: present
+
+- name: Create SSL directory
+  ansible.builtin.file:
+    path: "{{ moodle_ssl_dir }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0700"
+
+- name: Check whether existing certificate covers every configured SAN
+  ansible.builtin.shell: |
+    set -eu
+    cert={{ ssl_cert_file | quote }}
+    key={{ ssl_key_file | quote }}
+    [ -s "$cert" ] || exit 1
+    [ -s "$key" ] || exit 1
+    openssl pkey -in "$key" -noout >/dev/null 2>&1 || exit 1
+    openssl x509 -in "$cert" -noout -checkip {{ server_ip | quote }} >/dev/null 2>&1 || exit 1
+    openssl x509 -in "$cert" -noout -checkend 2592000 >/dev/null 2>&1 || exit 1
+    cert_pub=$(openssl x509 -in "$cert" -pubkey -noout | openssl pkey -pubin -outform DER 2>/dev/null | sha256sum | cut -d" " -f1)
+    key_pub=$(openssl pkey -in "$key" -pubout -outform DER 2>/dev/null | sha256sum | cut -d" " -f1)
+    [ "$cert_pub" = "$key_pub" ] || exit 1
+    {% for domain in ssl_domains %}
+    openssl x509 -in "$cert" -noout -checkhost {{ domain | quote }} >/dev/null 2>&1 || exit 1
+    {% endfor %}
+    exit 0
+  args:
+    executable: /bin/bash
+  register: ssl_san_check
+  changed_when: false
+  failed_when: false
+
+- name: Generate new self-signed certificate and private key when SANs change
+  ansible.builtin.command:
+    argv:
+      - openssl
+      - req
+      - -x509
+      - -nodes
+      - -newkey
+      - rsa:3072
+      - -sha256
+      - -days
+      - "{{ ssl_validity_days | string }}"
+      - -keyout
+      - "{{ ssl_key_file }}"
+      - -out
+      - "{{ ssl_cert_file }}"
+      - -subj
+      - "/C=ID/ST=West Java/L=Bogor/O=Lingga/CN={{ ssl_domains[0] }}"
+      - -addext
+      - "subjectAltName={{ ((ssl_domains | map('regex_replace', '^', 'DNS:') | list) + ['IP:' ~ server_ip]) | join(',') }}"
+  when: ssl_force_regenerate | bool or ssl_san_check.rc != 0
+
+- name: Secure private key permissions
+  ansible.builtin.file:
+    path: "{{ ssl_key_file }}"
+    owner: root
+    group: root
+    mode: "0600"
+
+- name: Set certificate permissions
+  ansible.builtin.file:
+    path: "{{ ssl_cert_file }}"
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Check whether Moodle Compose stack already exists
+  ansible.builtin.stat:
+    path: "{{ moodle_root }}/docker-compose.yml"
+  register: ssl_compose_file
+
+- name: Refresh PHP image trust certificate after SSL regeneration
+  ansible.builtin.copy:
+    src: "{{ ssl_cert_file }}"
+    dest: "{{ moodle_php_build_dir }}/serverA-ca.crt"
+    remote_src: true
+    owner: root
+    group: root
+    mode: "0644"
+  when: ssl_compose_file.stat.exists
+
+- name: Rebuild PHP image and reload Nginx after SSL change
+  ansible.builtin.command:
+    cmd: docker compose -f {{ moodle_root }}/docker-compose.yml up -d --build moodle
+  when: ssl_compose_file.stat.exists and (ssl_force_regenerate | bool or ssl_san_check.rc != 0)
+
+- name: Restart Nginx to load the renewed certificate
+  ansible.builtin.command:
+    cmd: docker compose -f {{ moodle_root }}/docker-compose.yml restart nginx
+  when: ssl_compose_file.stat.exists and (ssl_force_regenerate | bool or ssl_san_check.rc != 0)

@@ -1,0 +1,117 @@
+---
+# This group is intentionally limited to serverA. serverB is a peer-only inventory
+# record and is never a deployment target from this repository.
+ansible_become: true
+
+# Monitoring versions (review/pin before production rollout).
+node_exporter_version: "1.12.1"
+prometheus_version: "3.16.0"
+alertmanager_version: "0.35.0"
+blackbox_exporter_version: "0.29.1"
+architecture: "{{ 'linux-arm64' if ansible_architecture == 'aarch64' else 'linux-amd64' }}"
+
+docker_apt_arch: amd64
+
+# Standalone Moodle stack copied from the source architecture (host Bind9 + Docker services).
+moodle_version_expected: "5.2.3+"
+moodle_build_expected: "20260916"
+moodle_root: /opt/moodle
+moodle_code_dir: /opt/moodle/moodle
+moodle_data_dir: /opt/moodle/moodledata
+moodle_web_dir: /opt/moodle/web
+moodle_php_build_dir: /opt/moodle/php
+moodle_nginx_dir: /opt/moodle/nginx
+moodle_ssl_dir: /opt/moodle/ssl
+moodle_db_name: moodle
+moodle_db_user: moodle
+moodle_db_host: moodle-db
+moodle_wwwroot: "https://e-learning.lingga-ramadhan.net"
+moodle_php_image: "moodle-serverA-php:8.3"
+moodle_nginx_image: "nginx:alpine"
+mariadb_image: "mariadb:10.11"
+mysql_exporter_image: "prom/mysqld-exporter:v0.17.2"
+mysql_exporter_user: "moodle_exporter"
+moodle_compose_project: moodle
+moodle_source_archive: /opt/moodle/backup/moodle-source.tar.gz
+moodledata_archive: /opt/moodle/backup/moodledata.tar.gz
+moodle_sql_archive: /opt/moodle/backup/moodle.sql.gz
+moodle_backup_dir: /opt/moodle/backup
+moodle_source_sha256: "5fc407337058c89721f3ed96a8badd59ab3a8e234e3eb2db4690e5389716073a"
+moodledata_sha256: "4292cc42c7d86bd6ce732c23cad0f4f267e915ead45649afb29b3c15c325fa17"
+moodle_sql_sha256: "878de0beec19a42dac9e6b343d6561ccebef3e888eef4f403feae2a88432188c"
+moodle_source_restore_enabled: false
+moodle_restore_confirmation: ""
+moodle_container_php: moodle
+moodle_container_db: moodle-db
+moodle_container_nginx: moodle-nginx
+
+# SSL is self-signed and fully variable-driven. Changing server_ip regenerates SAN cert.
+ssl_mode: self_signed
+ssl_validity_days: 365
+ssl_force_regenerate: false
+ssl_domains:
+  - lingga-ramadhan.net
+  - www.lingga-ramadhan.net
+  - e-learning.lingga-ramadhan.net
+ssl_cert_file: "{{ moodle_ssl_dir }}/lingga-ramadhan.net.crt"
+ssl_key_file: "{{ moodle_ssl_dir }}/lingga-ramadhan.net.key"
+
+# Bind9 authoritative zones; recursion is restricted to the local subnet.
+bind_package: bind9
+bind_service: named
+bind_config_dir: /etc/bind
+bind_zone_name: lingga-ramadhan.net
+bind_reverse_zone: 3.20.172.in-addr.arpa
+bind_zone_file: /etc/bind/db.lingga-ramadhan.net
+bind_reverse_file: /etc/bind/db.172.20.3
+bind_network_cidr: 172.20.3.0/24
+bind_forwarders: []
+bind_zone_serial: "{{ ansible_date_time.date | replace('-', '') }}01"
+
+website_server_names:
+  - lingga-ramadhan.net
+  - www.lingga-ramadhan.net
+
+# Monitoring runs on serverA and scrapes serverB as an external peer.
+node_exporter_port: 9100
+prometheus_port: 9090
+alertmanager_port: 9093
+blackbox_exporter_port: 9115
+grafana_port: 3000
+docker_metrics_port: 9323
+mysql_exporter_port: 9104
+
+prometheus_user: prometheus
+node_exporter_user: node_exporter
+alertmanager_user: alertmanager
+blackbox_exporter_user: blackbox_exporter
+prometheus_config_dir: /etc/prometheus
+prometheus_data_dir: /var/lib/prometheus
+alertmanager_config_dir: /etc/alertmanager
+alertmanager_data_dir: /var/lib/alertmanager
+blackbox_config_dir: /etc/blackbox_exporter
+prometheus_listen_address: "127.0.0.1:{{ prometheus_port }}"
+grafana_domain: "{{ server_ip }}"
+grafana_repo_key: https://apt.grafana.com/gpg.key
+
+peer_host: serverB
+peer_ip: "{{ hostvars[peer_host].server_ip }}"
+# Server B is owned by a friend. This repository only scrapes its existing
+# monitoring endpoints; it does not install or change any service on Server B.
+# Set this to the exact public/internal Moodle URL reachable from Server A.
+peer_moodle_url: ""
+peer_moodle_monitor_enabled: true
+peer_docker_monitor_enabled: false
+peer_mariadb_monitor_enabled: true
+peer_node_exporter_target: "{{ peer_ip }}:{{ node_exporter_port }}"
+peer_mariadb_exporter_target: "{{ peer_ip }}:{{ mysql_exporter_port }}"
+
+docker_daemon_config_path: /etc/docker/daemon.json
+alert_cpu_percent: 85
+alert_memory_percent: 90
+alert_disk_percent: 90
+
+# Secrets are loaded from inventory/group_vars/managed/vault.yml.
+grafana_admin_password: "{{ vault_grafana_admin_password }}"
+mysql_exporter_password: "{{ vault_mysql_exporter_password }}"
+alert_email_enabled: false

@@ -1,0 +1,20 @@
+{
+  "annotations": {"list": []},
+  "editable": true,
+  "id": null,
+  "title": "Server A - Moodle & Database",
+  "uid": "servera-moodle-db",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "15s",
+  "time": {"from": "now-6h", "to": "now"},
+  "panels": [
+    {"id": 1, "type": "stat", "title": "Server A Node Exporter", "gridPos": {"h": 4, "w": 6, "x": 0, "y": 0}, "datasource": {"type": "prometheus", "uid": "prometheus-peer"}, "targets": [{"expr": "up{job=\"self_node_exporter\"}", "refId": "A", "instant": true}]},
+    {"id": 2, "type": "stat", "title": "Moodle HTTPS", "gridPos": {"h": 4, "w": 6, "x": 6, "y": 0}, "datasource": {"type": "prometheus", "uid": "prometheus-peer"}, "targets": [{"expr": "probe_success{job=\"self_moodle_http\"}", "refId": "A", "instant": true}]},
+    {"id": 3, "type": "stat", "title": "MariaDB Connection", "gridPos": {"h": 4, "w": 6, "x": 12, "y": 0}, "datasource": {"type": "prometheus", "uid": "prometheus-peer"}, "targets": [{"expr": "mysql_up{job=\"self_mariadb\"}", "refId": "A", "instant": true}]},
+    {"id": 4, "type": "timeseries", "title": "CPU Usage (%)", "gridPos": {"h": 8, "w": 12, "x": 0, "y": 4}, "datasource": {"type": "prometheus", "uid": "prometheus-peer"}, "targets": [{"expr": "100 - avg by(instance) (rate(node_cpu_seconds_total{job=\"self_node_exporter\",mode=\"idle\"}[5m])) * 100", "legendFormat": "CPU", "refId": "A"}]},
+    {"id": 5, "type": "timeseries", "title": "Memory Usage (%)", "gridPos": {"h": 8, "w": 12, "x": 12, "y": 4}, "datasource": {"type": "prometheus", "uid": "prometheus-peer"}, "targets": [{"expr": "100 * (1 - node_memory_MemAvailable_bytes{job=\"self_node_exporter\"} / node_memory_MemTotal_bytes{job=\"self_node_exporter\"})", "legendFormat": "RAM", "refId": "A"}]},
+    {"id": 6, "type": "timeseries", "title": "MariaDB Threads Connected", "gridPos": {"h": 8, "w": 12, "x": 0, "y": 12}, "datasource": {"type": "prometheus", "uid": "prometheus-peer"}, "targets": [{"expr": "mysql_global_status_threads_connected{job=\"self_mariadb\"}", "legendFormat": "Connected", "refId": "A"}]},
+    {"id": 7, "type": "timeseries", "title": "MariaDB Queries / sec", "gridPos": {"h": 8, "w": 12, "x": 12, "y": 12}, "datasource": {"type": "prometheus", "uid": "prometheus-peer"}, "targets": [{"expr": "rate(mysql_global_status_queries{job=\"self_mariadb\"}[5m])", "legendFormat": "Queries/s", "refId": "A"}]}
+  ]
+}

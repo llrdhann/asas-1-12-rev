@@ -1,0 +1,216 @@
+groups:
+  - name: serverA-application-health
+    rules:
+      - alert: ServerAHighCPU
+        expr: 100 - (avg by(instance) (rate(node_cpu_seconds_total{job="self_node_exporter",mode="idle"}[5m])) * 100) > {{ alert_cpu_percent }}
+        for: 5m
+        labels:
+          severity: warning
+          host: serverA
+        annotations:
+          summary: "CPU Server A tinggi"
+          description: "Penggunaan CPU Server A melebihi {{ alert_cpu_percent }}% selama 5 menit."
+
+      - alert: ServerAHighMemory
+        expr: 100 * (1 - (node_memory_MemAvailable_bytes{job="self_node_exporter"} / node_memory_MemTotal_bytes{job="self_node_exporter"})) > {{ alert_memory_percent }}
+        for: 5m
+        labels:
+          severity: warning
+          host: serverA
+        annotations:
+          summary: "RAM Server A tinggi"
+          description: "Penggunaan RAM Server A melebihi {{ alert_memory_percent }}% selama 5 menit."
+
+      - alert: ServerAHighDisk
+        expr: 100 * (1 - (node_filesystem_avail_bytes{job="self_node_exporter",mountpoint="/",fstype!~"tmpfs|overlay"} / node_filesystem_size_bytes{job="self_node_exporter",mountpoint="/",fstype!~"tmpfs|overlay"})) > {{ alert_disk_percent }}
+        for: 5m
+        labels:
+          severity: warning
+          host: serverA
+        annotations:
+          summary: "Disk Server A hampir penuh"
+          description: "Penggunaan filesystem root Server A melebihi {{ alert_disk_percent }}%."
+
+      - alert: ServerAMoodleHTTPDown
+        expr: probe_success{job="self_moodle_http"} == 0
+        for: 2m
+        labels:
+          severity: critical
+          host: serverA
+        annotations:
+          summary: "Moodle Server A tidak dapat diakses"
+          description: "Probe HTTPS lokal ke Moodle gagal selama 2 menit."
+
+      - alert: ServerAMoodleSlow
+        expr: probe_duration_seconds{job="self_moodle_http"} > 5
+        for: 5m
+        labels:
+          severity: warning
+          host: serverA
+        annotations:
+          summary: "Respons Moodle Server A lambat"
+          description: "Waktu respons Moodle melebihi 5 detik selama 5 menit."
+
+      - alert: ServerAMariaDBExporterDown
+        expr: up{job="self_mariadb"} == 0
+        for: 2m
+        labels:
+          severity: critical
+          host: serverA
+        annotations:
+          summary: "MariaDB exporter Server A tidak dapat dijangkau"
+          description: "Prometheus gagal mengambil metrik exporter MariaDB lokal."
+
+      - alert: ServerAMariaDBDown
+        expr: mysql_up{job="self_mariadb"} == 0
+        for: 2m
+        labels:
+          severity: critical
+          host: serverA
+        annotations:
+          summary: "MariaDB Server A tidak sehat"
+          description: "Exporter hidup tetapi koneksi ke MariaDB gagal."
+
+      - alert: ServerAMariaDBHighConnectionUsage
+        expr: 100 * (mysql_global_status_threads_connected{job="self_mariadb"} / mysql_global_variables_max_connections{job="self_mariadb"}) > 80
+        for: 5m
+        labels:
+          severity: warning
+          host: serverA
+        annotations:
+          summary: "Penggunaan koneksi MariaDB Server A tinggi"
+          description: "Penggunaan koneksi database melebihi 80% dari max_connections."
+
+  - name: peer-server-health
+    rules:
+      - alert: PeerNodeExporterDown
+        expr: up{job="peer_node_exporter"} == 0
+        for: 2m
+        labels:
+          severity: critical
+          peer: "{{ peer_host }}"
+        annotations:
+          summary: "Server B Node Exporter tidak dapat dijangkau"
+          description: "Prometheus A gagal mengambil metrik host Server B dari {{ peer_node_exporter_target }} selama 2 menit. Server bisa mati, exporter berhenti, atau jalur jaringan terputus."
+
+      - alert: PeerHighCPU
+        expr: |
+          100 - (avg by(instance) (
+            rate(node_cpu_seconds_total{job="peer_node_exporter",mode="idle"}[5m])
+          ) * 100) > {{ alert_cpu_percent }}
+        for: 5m
+        labels:
+          severity: warning
+          peer: "{{ peer_host }}"
+        annotations:
+          summary: "CPU Server B tinggi"
+          description: "Penggunaan CPU Server B melebihi {{ alert_cpu_percent }}% selama 5 menit."
+
+      - alert: PeerHighMemory
+        expr: |
+          100 * (1 - (
+            node_memory_MemAvailable_bytes{job="peer_node_exporter"}
+            /
+            node_memory_MemTotal_bytes{job="peer_node_exporter"}
+          )) > {{ alert_memory_percent }}
+        for: 5m
+        labels:
+          severity: warning
+          peer: "{{ peer_host }}"
+        annotations:
+          summary: "RAM Server B tinggi"
+          description: "Penggunaan RAM Server B melebihi {{ alert_memory_percent }}% selama 5 menit."
+
+      - alert: PeerHighDisk
+        expr: |
+          100 * (1 - (
+            node_filesystem_avail_bytes{job="peer_node_exporter",mountpoint="/",fstype!~"tmpfs|overlay"}
+            /
+            node_filesystem_size_bytes{job="peer_node_exporter",mountpoint="/",fstype!~"tmpfs|overlay"}
+          )) > {{ alert_disk_percent }}
+        for: 5m
+        labels:
+          severity: warning
+          peer: "{{ peer_host }}"
+        annotations:
+          summary: "Disk Server B hampir penuh"
+          description: "Penggunaan filesystem root Server B melebihi {{ alert_disk_percent }}%."
+
+{% if peer_moodle_monitor_enabled | bool and (peer_moodle_url | default('') | length > 0) %}      - alert: PeerMoodleDown
+        expr: probe_success{job="peer_moodle_http"} == 0
+        for: 2m
+        labels:
+          severity: critical
+          peer: "{{ peer_host }}"
+        annotations:
+          summary: "Moodle Server B tidak dapat diakses"
+          description: "Blackbox Exporter dari Server A gagal mengakses {{ peer_moodle_url }} selama 2 menit."
+
+      - alert: PeerMoodleSlow
+        expr: probe_duration_seconds{job="peer_moodle_http"} > 5
+        for: 5m
+        labels:
+          severity: warning
+          peer: "{{ peer_host }}"
+        annotations:
+          summary: "Respons Moodle Server B lambat"
+          description: "Waktu respons Moodle Server B melebihi 5 detik selama 5 menit."
+
+      - alert: PeerMoodleSSLCertificateExpiring
+        expr: (probe_ssl_earliest_cert_expiry{job="peer_moodle_http"} - time()) / 86400 < 14
+        for: 1h
+        labels:
+          severity: warning
+          peer: "{{ peer_host }}"
+        annotations:
+          summary: "Sertifikat SSL Moodle Server B akan kedaluwarsa"
+          description: "Sertifikat SSL Moodle Server B tersisa kurang dari 14 hari."
+{% endif %}
+
+{% if peer_mariadb_monitor_enabled | bool %}  - name: peer-mariadb-health
+    rules:
+      - alert: PeerMariaDBExporterDown
+        expr: up{job="peer_mariadb"} == 0
+        for: 2m
+        labels:
+          severity: warning
+          peer: "{{ peer_host }}"
+        annotations:
+          summary: "MariaDB exporter Server B tidak dapat dijangkau"
+          description: "Endpoint {{ peer_mariadb_exporter_target }} tidak dapat di-scrape."
+
+      - alert: PeerMariaDBDown
+        expr: mysql_up{job="peer_mariadb"} == 0
+        for: 2m
+        labels:
+          severity: critical
+          peer: "{{ peer_host }}"
+        annotations:
+          summary: "MariaDB Server B tidak sehat"
+          description: "Exporter merespons, tetapi koneksi exporter ke MariaDB gagal."
+
+      - alert: PeerMariaDBHighConnectionUsage
+        expr: |
+          100 * (
+            mysql_global_status_threads_connected{job="peer_mariadb"}
+            /
+            mysql_global_variables_max_connections{job="peer_mariadb"}
+          ) > 80
+        for: 5m
+        labels:
+          severity: warning
+          peer: "{{ peer_host }}"
+        annotations:
+          summary: "Koneksi MariaDB Server B mendekati batas"
+          description: "Penggunaan koneksi MariaDB Server B melebihi 80% dari max_connections selama 5 menit."
+
+      - alert: PeerMariaDBSlowQueriesIncreasing
+        expr: increase(mysql_global_status_slow_queries{job="peer_mariadb"}[10m]) > 0
+        for: 5m
+        labels:
+          severity: warning
+          peer: "{{ peer_host }}"
+        annotations:
+          summary: "Slow query MariaDB Server B bertambah"
+          description: "Terdeteksi slow query baru pada MariaDB Server B dalam rentang evaluasi."
+{% endif %}

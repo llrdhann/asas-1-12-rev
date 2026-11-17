@@ -1,0 +1,13 @@
+$TTL 86400
+@ IN SOA ns1.{{ bind_zone_name }}. admin.{{ bind_zone_name }}. (
+    {{ bind_zone_serial }}
+    3600
+    1800
+    604800
+    86400
+)
+@           IN NS ns1.{{ bind_zone_name }}.
+ns1         IN A  {{ server_ip }}
+@           IN A  {{ server_ip }}
+www         IN A  {{ server_ip }}
+e-learning  IN A  {{ server_ip }}

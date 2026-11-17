@@ -1,0 +1,65 @@
+services:
+  db:
+    image: "{{ mariadb_image }}"
+    container_name: "{{ inventory_hostname }}-mariadb"
+    restart: unless-stopped
+    environment:
+      MARIADB_DATABASE: "{{ moodle_db_name }}"
+      MARIADB_USER: "{{ moodle_db_user }}"
+      MARIADB_PASSWORD: "{{ moodle_db_password }}"
+      MARIADB_ROOT_PASSWORD: "{{ moodle_db_root_password }}"
+    volumes:
+      - mariadb_data:/var/lib/mysql
+      - "{{ moodle_root }}/initdb/01-exporter.sql:/docker-entrypoint-initdb.d/01-exporter.sql:ro"
+    networks:
+      - moodle_net
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 10s
+      timeout: 5s
+      retries: 15
+
+  moodle:
+    image: "{{ moodle_php_image }}"
+    container_name: "{{ inventory_hostname }}-moodle"
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "{{ moodle_bind_address }}:{{ moodle_port }}:80"
+    volumes:
+      - "{{ moodle_code_dir }}:/var/www/html"
+      - "{{ moodle_data_dir }}:/var/www/moodledata"
+    environment:
+      PHP_INI-upload_max_filesize: "100M"
+      PHP_INI-post_max_size: "110M"
+      PHP_INI-memory_limit: "512M"
+      PHP_INI-max_execution_time: "300"
+    networks:
+      - moodle_net
+
+  mysql-exporter:
+    image: "{{ mysql_exporter_image }}"
+    container_name: "{{ inventory_hostname }}-mysql-exporter"
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    command:
+      - "--config.my-cnf=/etc/mysql-exporter/.my.cnf"
+      - "--web.listen-address=:9104"
+    ports:
+      - "{{ server_ip }}:{{ mysql_exporter_port }}:9104"
+    volumes:
+      - "{{ moodle_root }}/mysql-exporter/.my.cnf:/etc/mysql-exporter/.my.cnf:ro"
+    networks:
+      - moodle_net
+
+networks:
+  moodle_net:
+    name: "{{ inventory_hostname }}-moodle-net"
+
+volumes:
+  mariadb_data:
+    name: "{{ inventory_hostname }}-mariadb-data"

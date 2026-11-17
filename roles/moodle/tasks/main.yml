@@ -1,0 +1,172 @@
+---
+- name: Create Moodle application directories
+  ansible.builtin.file:
+    path: "{{ item.path }}"
+    state: directory
+    owner: "{{ item.owner | default('root') }}"
+    group: "{{ item.group | default('root') }}"
+    mode: "{{ item.mode | default('0755') }}"
+  loop:
+    - { path: "{{ moodle_code_dir }}" }
+    - { path: "{{ moodle_data_dir }}", owner: "33", group: "33", mode: "0770" }
+    - { path: "{{ moodle_web_dir }}" }
+    - { path: "{{ moodle_php_build_dir }}" }
+    - { path: "{{ moodle_nginx_dir }}" }
+    - { path: "{{ moodle_root }}/db" }
+
+- name: Require protected Vault credentials
+  ansible.builtin.assert:
+    that:
+      - vault_moodle_db_root_password is defined
+      - vault_moodle_db_root_password | length >= 20
+      - vault_moodle_db_password is defined
+      - vault_moodle_db_password | length >= 20
+    fail_msg: "Isi dan encrypt inventory/group_vars/managed/vault.yml sebelum deploy Moodle."
+  no_log: true
+
+- name: Install custom PHP-FPM Dockerfile
+  ansible.builtin.template:
+    src: Dockerfile.j2
+    dest: "{{ moodle_php_build_dir }}/Dockerfile"
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Recreate Moodle containers
+
+- name: Copy self-signed certificate into PHP build context
+  ansible.builtin.copy:
+    src: "{{ ssl_cert_file }}"
+    dest: "{{ moodle_php_build_dir }}/serverA-ca.crt"
+    remote_src: true
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Recreate Moodle containers
+
+- name: Install Nginx virtual host configuration
+  ansible.builtin.template:
+    src: default.conf.j2
+    dest: "{{ moodle_nginx_dir }}/default.conf"
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Recreate Moodle containers
+
+- name: Render protected Docker Compose environment file
+  ansible.builtin.template:
+    src: env.j2
+    dest: "{{ moodle_root }}/.env"
+    owner: root
+    group: root
+    mode: "0600"
+  no_log: true
+  notify: Recreate Moodle containers
+
+- name: Install Docker Compose stack definition
+  ansible.builtin.template:
+    src: compose.yml.j2
+    dest: "{{ moodle_root }}/docker-compose.yml"
+    owner: root
+    group: root
+    mode: "0600"
+  no_log: true
+  notify: Recreate Moodle containers
+
+- name: Install MariaDB exporter credentials file
+  ansible.builtin.template:
+    src: mysql-exporter.cnf.j2
+    dest: "{{ moodle_root }}/mysql-exporter.cnf"
+    owner: "65534"
+    group: "65534"
+    mode: "0400"
+  no_log: true
+  notify: Recreate Moodle containers
+
+- name: Install least-privilege MariaDB exporter account SQL script
+  ansible.builtin.template:
+    src: exporter-init.sql.j2
+    dest: "{{ moodle_root }}/db/exporter-init.sql"
+    owner: root
+    group: root
+    mode: "0600"
+  no_log: true
+
+- name: Install Moodle config.php from protected template
+  ansible.builtin.template:
+    src: config.php.j2
+    dest: "{{ moodle_code_dir }}/config.php"
+    owner: root
+    group: www-data
+    mode: "0640"
+  no_log: true
+  notify: Recreate Moodle containers
+
+- name: Check that restored Moodle public entry point exists
+  ansible.builtin.stat:
+    path: "{{ moodle_code_dir }}/public/index.php"
+  register: moodle_public_index
+
+- name: Do not start Moodle before source code has been restored
+  ansible.builtin.assert:
+    that: moodle_public_index.stat.exists
+    fail_msg: >-
+      Moodle source belum dipulihkan. Jalankan playbooks/restore-moodle.yml setelah
+      menaruh backup terverifikasi di {{ moodle_backup_dir | default('/srv/moodle/backup-before-migration') }}.
+      Role ini sengaja tidak membuat Moodle kosong.
+
+- name: Verify restored Moodle release matches the audited source
+  ansible.builtin.command:
+    cmd: "grep -F '{{ moodle_version_expected }}' {{ moodle_code_dir }}/public/version.php"
+  changed_when: false
+  when: moodle_public_index.stat.exists
+
+- name: Verify restored Moodle build matches the audited source
+  ansible.builtin.command:
+    cmd: "grep -F '{{ moodle_build_expected }}' {{ moodle_code_dir }}/public/version.php"
+  changed_when: false
+  when: moodle_public_index.stat.exists
+
+- name: Ensure Moodle data ownership
+  ansible.builtin.file:
+    path: "{{ moodle_data_dir }}"
+    state: directory
+    recurse: true
+    owner: '33'
+    group: '33'
+  when: moodle_public_index.stat.exists
+
+- name: Start Moodle Docker Compose stack
+  community.docker.docker_compose_v2:
+    project_src: "{{ moodle_root }}"
+    state: present
+    build: always
+  no_log: true
+
+- name: Wait for MariaDB container to accept authenticated connections
+  ansible.builtin.command:
+    argv:
+      - docker
+      - exec
+      - -e
+      - MYSQL_PWD={{ vault_moodle_db_root_password }}
+      - "{{ moodle_container_db }}"
+      - mariadb-admin
+      - -uroot
+      - ping
+      - --silent
+  register: mariadb_ready
+  retries: 30
+  delay: 5
+  until: mariadb_ready.rc == 0
+  changed_when: false
+  no_log: true
+
+- name: Ensure least-privilege MariaDB exporter account exists
+  ansible.builtin.shell: |
+    docker exec -e MYSQL_PWD="$MYSQL_ROOT_PWD" -i {{ moodle_container_db }} mariadb -uroot < {{ (moodle_root ~ '/db/exporter-init.sql') | quote }}
+  args:
+    executable: /bin/bash
+  environment:
+    MYSQL_ROOT_PWD: "{{ vault_moodle_db_root_password }}"
+  no_log: true
+  changed_when: false

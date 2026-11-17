@@ -1,0 +1,87 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  external_labels:
+    monitor: "{{ inventory_hostname }}"
+
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets:
+            - "127.0.0.1:{{ alertmanager_port }}"
+
+rule_files:
+  - "{{ prometheus_config_dir }}/alert-rules.yml"
+
+scrape_configs:
+  # Server A self-metrics (local Node Exporter).
+  - job_name: "self_node_exporter"
+    static_configs:
+      - targets: ["{{ server_ip }}:{{ node_exporter_port }}"]
+        labels:
+          peer: "serverA"
+
+  # Local Moodle HTTP/TLS probe through Blackbox Exporter. Probe loopback with the correct Host/SNI.
+  - job_name: "self_moodle_http"
+    metrics_path: /probe
+    params:
+      module: [http_2xx_self]
+    static_configs:
+      - targets: ["https://127.0.0.1"]
+        labels:
+          service: "moodle"
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: __param_target
+      - source_labels: [__param_target]
+        target_label: instance
+      - target_label: __address__
+        replacement: "127.0.0.1:{{ blackbox_exporter_port }}"
+
+  # Local MariaDB exporter is bound to loopback only.
+  - job_name: "self_mariadb"
+    static_configs:
+      - targets: ["127.0.0.1:{{ mysql_exporter_port }}"]
+        labels:
+          service: "mariadb"
+
+  # Server B host metrics (Node Exporter already operated by the peer owner).
+  - job_name: "peer_node_exporter"
+    static_configs:
+      - targets: ["{{ peer_node_exporter_target }}"]
+        labels:
+          peer: "{{ peer_host }}"
+
+{% if peer_docker_monitor_enabled | bool %}  # Optional Docker Engine metrics; disabled unless explicitly requested.
+  - job_name: "peer_docker"
+    static_configs:
+      - targets: ["{{ peer_ip }}:{{ docker_metrics_port }}"]
+        labels:
+          peer: "{{ peer_host }}"
+{% endif %}
+{% if peer_mariadb_monitor_enabled | bool %}
+  # MariaDB metrics from the peer's existing mysqld_exporter.
+  - job_name: "peer_mariadb"
+    static_configs:
+      - targets: ["{{ peer_mariadb_exporter_target }}"]
+        labels:
+          peer: "{{ peer_host }}"
+{% endif %}
+{% if peer_moodle_monitor_enabled | bool and (peer_moodle_url | default('') | length > 0) %}
+  # Moodle availability and TLS/HTTP metrics via Blackbox Exporter on Server A.
+  - job_name: "peer_moodle_http"
+    metrics_path: /probe
+    params:
+      module: [http_2xx]
+    static_configs:
+      - targets: ["{{ peer_moodle_url }}"]
+        labels:
+          peer: "{{ peer_host }}"
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: __param_target
+      - source_labels: [__param_target]
+        target_label: instance
+      - target_label: __address__
+        replacement: "127.0.0.1:{{ blackbox_exporter_port }}"
+{% endif %}

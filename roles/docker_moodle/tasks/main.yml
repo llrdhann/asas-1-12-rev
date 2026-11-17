@@ -1,0 +1,8 @@
+---
+- name: Stop legacy fresh-install role until migration-safe tasks replace it
+  ansible.builtin.fail:
+    msg: >-
+      The legacy docker_moodle role creates a fresh Moodle 5.1 installation and
+      must not be used for the serverA migration. Use the migration procedure
+      after its backup, restore, config.php, and rollback checks are implemented.
+      This role is intentionally disabled to protect the existing target database.

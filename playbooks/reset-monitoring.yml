@@ -1,0 +1,160 @@
+---
+# Reset monitoring on Server A only.
+# Default mode removes Ansible-managed monitoring configuration but preserves
+# Prometheus, Alertmanager, and Grafana data. Set reset_mode=full only when a
+# destructive clean reinstall is intended.
+- name: Reset monitoring stack on Server A only
+  hosts: serverA
+  become: true
+  gather_facts: false
+
+  vars:
+    reset_mode: config
+    confirm_full_reset: false
+
+    monitoring_services:
+      - node_exporter
+      - prometheus
+      - alertmanager
+      - blackbox_exporter
+      - grafana-server
+
+    monitoring_config_files:
+      - "{{ prometheus_config_dir }}/prometheus.yml"
+      - "{{ prometheus_config_dir }}/alert-rules.yml"
+      - "{{ alertmanager_config_dir }}/alertmanager.yml"
+      - "{{ blackbox_config_dir }}/blackbox.yml"
+      - /etc/grafana/provisioning/datasources/prometheus.yml
+      - /etc/grafana/provisioning/dashboards/ansible.yml
+      - /var/lib/grafana/dashboards/serverB-monitoring.json
+
+    monitoring_data_directories:
+      - "{{ prometheus_data_dir }}"
+      - "{{ alertmanager_data_dir }}"
+      - /var/lib/grafana
+
+    monitoring_config_directories:
+      - "{{ prometheus_config_dir }}"
+      - "{{ alertmanager_config_dir }}"
+      - "{{ blackbox_config_dir }}"
+      - /etc/grafana
+
+    monitoring_service_units:
+      - /etc/systemd/system/node_exporter.service
+      - /etc/systemd/system/prometheus.service
+      - /etc/systemd/system/alertmanager.service
+      - /etc/systemd/system/blackbox_exporter.service
+
+    monitoring_binaries:
+      - /usr/local/bin/node_exporter
+      - /usr/local/bin/prometheus
+      - /usr/local/bin/promtool
+      - /usr/local/bin/alertmanager
+      - /usr/local/bin/amtool
+      - /usr/local/bin/blackbox_exporter
+
+    monitoring_service_users:
+      - node_exporter
+      - prometheus
+      - alertmanager
+      - blackbox_exporter
+
+  tasks:
+    - name: Validate reset mode
+      ansible.builtin.assert:
+        that:
+          - reset_mode in ['config', 'full']
+        fail_msg: "reset_mode harus 'config' atau 'full'."
+
+    - name: Verify target is Server A
+      ansible.builtin.assert:
+        that:
+          - inventory_hostname == 'serverA'
+          - server_role == 'primary'
+        fail_msg: "Reset dibatalkan: target bukan host Server A yang ditandai server_role=primary."
+
+    - name: Require explicit confirmation for destructive full reset
+      ansible.builtin.assert:
+        that:
+          - confirm_full_reset | bool
+        fail_msg: >-
+          Reset full dibatalkan. Jalankan dengan
+          -e reset_mode=full -e confirm_full_reset=true jika memang ingin
+          menghapus data historis Prometheus, Alertmanager, dan Grafana.
+      when: reset_mode == 'full'
+
+    - name: Stop monitoring services on Server A
+      ansible.builtin.systemd:
+        name: "{{ item }}"
+        state: stopped
+      loop: "{{ monitoring_services }}"
+      failed_when: false
+
+    - name: Remove Ansible-managed monitoring configuration files
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: absent
+      loop: "{{ monitoring_config_files }}"
+
+    - name: Remove monitoring data and configuration directories for full reset
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: absent
+      loop: "{{ monitoring_data_directories + monitoring_config_directories }}"
+      when: reset_mode == 'full'
+
+    - name: Remove custom monitoring systemd units for full reset
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: absent
+      loop: "{{ monitoring_service_units }}"
+      when: reset_mode == 'full'
+
+    - name: Remove installed monitoring binaries for full reset
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: absent
+      loop: "{{ monitoring_binaries }}"
+      when: reset_mode == 'full'
+
+    - name: Purge Grafana package for full reset
+      ansible.builtin.apt:
+        name: grafana
+        state: absent
+        purge: true
+        autoremove: false
+      when: reset_mode == 'full'
+
+    - name: Remove Grafana APT repository and signing key for full reset
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: absent
+      loop:
+        - /etc/apt/sources.list.d/grafana.list
+        - /etc/apt/keyrings/grafana.asc
+      when: reset_mode == 'full'
+
+    - name: Remove monitoring service accounts for full reset
+      ansible.builtin.user:
+        name: "{{ item }}"
+        state: absent
+        remove: false
+      loop: "{{ monitoring_service_users }}"
+      when: reset_mode == 'full'
+
+    - name: Reload systemd after reset
+      ansible.builtin.systemd:
+        daemon_reload: true
+
+    - name: Report reset result
+      ansible.builtin.debug:
+        msg: >-
+          Reset {{ reset_mode }} selesai pada Server A ({{ server_ip }}).
+          {% if reset_mode == 'config' %}
+          Data historis Prometheus, Alertmanager, dan Grafana dipertahankan.
+          Jalankan playbooks/site.yml untuk memasang ulang konfigurasi dan
+          mengaktifkan service.
+          {% else %}
+          Data historis dan instalasi monitoring telah dihapus. Jalankan
+          playbooks/site.yml untuk instalasi ulang.
+          {% endif %}

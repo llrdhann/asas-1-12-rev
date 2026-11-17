@@ -1,0 +1,31 @@
+# Ansible Vault and secret files
+**/vault.yml
+**/vault-*.yml
+*.vault
+.env
+.env.*
+
+# Moodle runtime configuration and private material
+config.php
+config.php.bak
+*.key
+*.pem
+*.p12
+*.pfx
+*.crt
+*.cer
+.my.cnf
+
+# Backups and runtime data
+*.sql
+*.sql.gz
+*.dump
+*.tar
+*.tar.gz
+*.tgz
+*.bak
+*.backup
+moodledata/
+
+# Local Ansible artifacts
+*.retry

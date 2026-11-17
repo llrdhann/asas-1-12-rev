@@ -1,0 +1,4 @@
+---
+server_ip: "172.20.3.100"
+ansible_host: "{{ server_ip }}"
+server_role: primary

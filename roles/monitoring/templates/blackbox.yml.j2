@@ -1,0 +1,25 @@
+modules:
+  # Generic module: derives Host and TLS SNI from the URL, for Server B.
+  http_2xx:
+    prober: http
+    timeout: 5s
+    http:
+      method: GET
+      preferred_ip_protocol: ip4
+      valid_status_codes: [200, 301, 302, 303, 403]
+      tls_config:
+        insecure_skip_verify: true
+
+  # Local Server A probe uses loopback but must route with Moodle's virtual host.
+  http_2xx_self:
+    prober: http
+    timeout: 5s
+    http:
+      method: GET
+      preferred_ip_protocol: ip4
+      valid_status_codes: [200, 301, 302, 303, 403]
+      headers:
+        Host: e-learning.lingga-ramadhan.net
+      tls_config:
+        insecure_skip_verify: true
+        server_name: e-learning.lingga-ramadhan.net

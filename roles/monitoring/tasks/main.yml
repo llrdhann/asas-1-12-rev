@@ -1,0 +1,361 @@
+---
+- name: Install monitoring dependencies
+  ansible.builtin.apt:
+    name:
+      - tar
+      - gzip
+      - adduser
+    state: present
+    update_cache: true
+
+- name: Create monitoring service users
+  ansible.builtin.user:
+    name: "{{ item }}"
+    system: true
+    shell: /usr/sbin/nologin
+    create_home: false
+  loop:
+    - "{{ node_exporter_user }}"
+    - "{{ prometheus_user }}"
+    - "{{ alertmanager_user }}"
+    - "{{ blackbox_exporter_user }}"
+
+- name: Create monitoring directories
+  ansible.builtin.file:
+    path: "{{ item.path }}"
+    state: directory
+    owner: "{{ item.owner }}"
+    group: "{{ item.group }}"
+    mode: "{{ item.mode }}"
+  loop:
+    - { path: "{{ prometheus_config_dir }}", owner: "root", group: "{{ prometheus_user }}", mode: "0750" }
+    - { path: "{{ prometheus_data_dir }}", owner: "{{ prometheus_user }}", group: "{{ prometheus_user }}", mode: "0750" }
+    - { path: "{{ alertmanager_config_dir }}", owner: "root", group: "{{ alertmanager_user }}", mode: "0750" }
+    - { path: "{{ alertmanager_data_dir }}", owner: "{{ alertmanager_user }}", group: "{{ alertmanager_user }}", mode: "0750" }
+    - { path: "{{ blackbox_config_dir }}", owner: "root", group: "{{ blackbox_exporter_user }}", mode: "0750" }
+
+# Node Exporter
+- name: Download Node Exporter archive
+  ansible.builtin.get_url:
+    url: "https://github.com/prometheus/node_exporter/releases/download/v{{ node_exporter_version }}/node_exporter-{{ node_exporter_version }}.{{ architecture }}.tar.gz"
+    dest: /tmp/node_exporter.tar.gz
+    mode: "0644"
+
+- name: Extract Node Exporter
+  ansible.builtin.unarchive:
+    src: /tmp/node_exporter.tar.gz
+    dest: /tmp
+    remote_src: true
+    creates: "/tmp/node_exporter-{{ node_exporter_version }}.{{ architecture }}/node_exporter"
+
+- name: Install Node Exporter binary
+  ansible.builtin.copy:
+    src: "/tmp/node_exporter-{{ node_exporter_version }}.{{ architecture }}/node_exporter"
+    dest: /usr/local/bin/node_exporter
+    remote_src: true
+    owner: root
+    group: root
+    mode: "0755"
+  notify: Restart Node Exporter
+
+- name: Install Node Exporter systemd unit
+  ansible.builtin.template:
+    src: node_exporter.service.j2
+    dest: /etc/systemd/system/node_exporter.service
+    owner: root
+    group: root
+    mode: "0644"
+  notify:
+    - Reload systemd
+    - Restart Node Exporter
+
+# Prometheus
+- name: Download Prometheus archive
+  ansible.builtin.get_url:
+    url: "https://github.com/prometheus/prometheus/releases/download/v{{ prometheus_version }}/prometheus-{{ prometheus_version }}.{{ architecture }}.tar.gz"
+    dest: /tmp/prometheus.tar.gz
+    mode: "0644"
+
+- name: Extract Prometheus
+  ansible.builtin.unarchive:
+    src: /tmp/prometheus.tar.gz
+    dest: /tmp
+    remote_src: true
+    creates: "/tmp/prometheus-{{ prometheus_version }}.{{ architecture }}/prometheus"
+
+- name: Install Prometheus binaries
+  ansible.builtin.copy:
+    src: "/tmp/prometheus-{{ prometheus_version }}.{{ architecture }}/{{ item }}"
+    dest: "/usr/local/bin/{{ item }}"
+    remote_src: true
+    owner: root
+    group: root
+    mode: "0755"
+  loop:
+    - prometheus
+    - promtool
+  notify: Restart Prometheus
+
+- name: Install Prometheus configuration
+  ansible.builtin.template:
+    src: prometheus.yml.j2
+    dest: "{{ prometheus_config_dir }}/prometheus.yml"
+    owner: root
+    group: "{{ prometheus_user }}"
+    mode: "0640"
+  notify: Restart Prometheus
+
+- name: Install Prometheus alert rules
+  ansible.builtin.template:
+    src: alert-rules.yml.j2
+    dest: "{{ prometheus_config_dir }}/alert-rules.yml"
+    owner: root
+    group: "{{ prometheus_user }}"
+    mode: "0640"
+  notify: Restart Prometheus
+
+- name: Validate Prometheus configuration
+  ansible.builtin.command:
+    cmd: "/usr/local/bin/promtool check config {{ prometheus_config_dir }}/prometheus.yml"
+  changed_when: false
+
+- name: Validate Prometheus alert rules
+  ansible.builtin.command:
+    cmd: "/usr/local/bin/promtool check rules {{ prometheus_config_dir }}/alert-rules.yml"
+  changed_when: false
+
+- name: Install Prometheus systemd unit
+  ansible.builtin.template:
+    src: prometheus.service.j2
+    dest: /etc/systemd/system/prometheus.service
+    owner: root
+    group: root
+    mode: "0644"
+  notify:
+    - Reload systemd
+    - Restart Prometheus
+
+# Alertmanager
+- name: Download Alertmanager archive
+  ansible.builtin.get_url:
+    url: "https://github.com/prometheus/alertmanager/releases/download/v{{ alertmanager_version }}/alertmanager-{{ alertmanager_version }}.{{ architecture }}.tar.gz"
+    dest: /tmp/alertmanager.tar.gz
+    mode: "0644"
+
+- name: Extract Alertmanager
+  ansible.builtin.unarchive:
+    src: /tmp/alertmanager.tar.gz
+    dest: /tmp
+    remote_src: true
+    creates: "/tmp/alertmanager-{{ alertmanager_version }}.{{ architecture }}/alertmanager"
+
+- name: Install Alertmanager binaries
+  ansible.builtin.copy:
+    src: "/tmp/alertmanager-{{ alertmanager_version }}.{{ architecture }}/{{ item }}"
+    dest: "/usr/local/bin/{{ item }}"
+    remote_src: true
+    owner: root
+    group: root
+    mode: "0755"
+  loop:
+    - alertmanager
+    - amtool
+  notify: Restart Alertmanager
+
+- name: Install Alertmanager configuration
+  no_log: true
+  ansible.builtin.template:
+    src: alertmanager.yml.j2
+    dest: "{{ alertmanager_config_dir }}/alertmanager.yml"
+    owner: root
+    group: "{{ alertmanager_user }}"
+    mode: "0640"
+  notify: Restart Alertmanager
+
+- name: Validate Alertmanager configuration
+  ansible.builtin.command:
+    cmd: "/usr/local/bin/amtool check-config {{ alertmanager_config_dir }}/alertmanager.yml"
+  changed_when: false
+
+- name: Install Alertmanager systemd unit
+  ansible.builtin.template:
+    src: alertmanager.service.j2
+    dest: /etc/systemd/system/alertmanager.service
+    owner: root
+    group: root
+    mode: "0644"
+  notify:
+    - Reload systemd
+    - Restart Alertmanager
+
+# Blackbox Exporter probes the peer Moodle HTTP endpoint.
+- name: Download Blackbox Exporter archive
+  ansible.builtin.get_url:
+    url: "https://github.com/prometheus/blackbox_exporter/releases/download/v{{ blackbox_exporter_version }}/blackbox_exporter-{{ blackbox_exporter_version }}.{{ architecture }}.tar.gz"
+    dest: /tmp/blackbox_exporter.tar.gz
+    mode: "0644"
+
+- name: Extract Blackbox Exporter
+  ansible.builtin.unarchive:
+    src: /tmp/blackbox_exporter.tar.gz
+    dest: /tmp
+    remote_src: true
+    creates: "/tmp/blackbox_exporter-{{ blackbox_exporter_version }}.{{ architecture }}/blackbox_exporter"
+
+- name: Install Blackbox Exporter binary
+  ansible.builtin.copy:
+    src: "/tmp/blackbox_exporter-{{ blackbox_exporter_version }}.{{ architecture }}/blackbox_exporter"
+    dest: /usr/local/bin/blackbox_exporter
+    remote_src: true
+    owner: root
+    group: root
+    mode: "0755"
+  notify: Restart Blackbox Exporter
+
+- name: Install Blackbox Exporter config
+  ansible.builtin.template:
+    src: blackbox.yml.j2
+    dest: "{{ blackbox_config_dir }}/blackbox.yml"
+    owner: root
+    group: "{{ blackbox_exporter_user }}"
+    mode: "0640"
+  notify: Restart Blackbox Exporter
+
+- name: Install Blackbox Exporter systemd unit
+  ansible.builtin.template:
+    src: blackbox_exporter.service.j2
+    dest: /etc/systemd/system/blackbox_exporter.service
+    owner: root
+    group: root
+    mode: "0644"
+  notify:
+    - Reload systemd
+    - Restart Blackbox Exporter
+
+# Grafana native package/service, not a container.
+- name: Download Grafana repository signing key
+  ansible.builtin.get_url:
+    url: "{{ grafana_repo_key }}"
+    dest: /etc/apt/keyrings/grafana.asc
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Add Grafana APT repository
+  ansible.builtin.apt_repository:
+    repo: "deb [signed-by=/etc/apt/keyrings/grafana.asc] https://apt.grafana.com stable main"
+    filename: grafana
+    state: present
+
+- name: Install Grafana
+  ansible.builtin.apt:
+    name: grafana
+    state: present
+    update_cache: true
+  notify: Restart Grafana
+
+- name: Ensure Grafana provisioning directories exist
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: root
+    group: grafana
+    mode: "0750"
+  loop:
+    - /etc/grafana/provisioning/datasources
+    - /etc/grafana/provisioning/dashboards
+    - /var/lib/grafana/dashboards
+
+- name: Configure Grafana dashboard provider
+  ansible.builtin.template:
+    src: grafana-dashboard-provider.yml.j2
+    dest: /etc/grafana/provisioning/dashboards/ansible.yml
+    owner: root
+    group: grafana
+    mode: "0640"
+  notify: Restart Grafana
+
+- name: Install Server A application and database dashboard
+  ansible.builtin.template:
+    src: serverA-dashboard.json.j2
+    dest: /var/lib/grafana/dashboards/serverA-moodle.json
+    owner: root
+    group: grafana
+    mode: "0640"
+  notify: Restart Grafana
+
+- name: Install Server B monitoring dashboard
+  ansible.builtin.template:
+    src: serverB-dashboard.json.j2
+    dest: /var/lib/grafana/dashboards/serverB-monitoring.json
+    owner: root
+    group: grafana
+    mode: "0640"
+  notify: Restart Grafana
+
+- name: Configure Grafana Prometheus datasource
+  ansible.builtin.template:
+    src: grafana-datasource.yml.j2
+    dest: /etc/grafana/provisioning/datasources/prometheus.yml
+    owner: root
+    group: grafana
+    mode: "0640"
+  notify: Restart Grafana
+
+- name: Set Grafana admin password
+  no_log: true
+  ansible.builtin.lineinfile:
+    path: /etc/grafana/grafana.ini
+    regexp: '^;?admin_password\s*='
+    line: "admin_password = {{ grafana_admin_password }}"
+    insertafter: '^\[security\]'
+  notify: Restart Grafana
+
+- name: Flush service handlers before enabling services
+  ansible.builtin.meta: flush_handlers
+
+- name: Enable and start monitoring services
+  ansible.builtin.systemd:
+    name: "{{ item }}"
+    enabled: true
+    state: started
+    daemon_reload: true
+  loop:
+    - node_exporter
+    - prometheus
+    - alertmanager
+    - blackbox_exporter
+    - grafana-server
+
+- name: Verify local monitoring endpoints
+  ansible.builtin.uri:
+    url: "{{ item }}"
+    status_code: 200
+    return_content: false
+  loop:
+    - "http://127.0.0.1:{{ prometheus_port }}/-/healthy"
+    - "http://127.0.0.1:{{ alertmanager_port }}/-/healthy"
+    - "http://127.0.0.1:{{ blackbox_exporter_port }}/"
+
+# Read-only peer endpoint checks from Server A. These tasks do not SSH to or
+# configure Server B; they only verify that its owner-provided exporters answer.
+- name: Verify Server B Node Exporter metrics endpoint
+  ansible.builtin.uri:
+    url: "http://{{ peer_node_exporter_target }}/metrics"
+    method: GET
+    status_code: 200
+    return_content: false
+    timeout: 5
+  changed_when: false
+  failed_when: false
+
+- name: Verify Server B MariaDB Exporter metrics endpoint
+  ansible.builtin.uri:
+    url: "http://{{ peer_mariadb_exporter_target }}/metrics"
+    method: GET
+    status_code: 200
+    return_content: false
+    timeout: 5
+  changed_when: false
+  failed_when: false
+  when: peer_mariadb_monitor_enabled | bool
