@@ -1,9 +1,13 @@
+
 ---
-- name: Install Docker Engine and Compose plugin from Ubuntu packages
+- name: Install Docker Engine and Compose plugin from official Docker repository
   ansible.builtin.apt:
     name:
-      - docker.io
-      - docker-compose-v2
+      - docker-ce
+      - docker-ce-cli
+      - containerd.io
+      - docker-buildx-plugin
+      - docker-compose-plugin
       - python3-docker
     state: present
     update_cache: true
@@ -13,6 +17,27 @@
     name: docker
     enabled: true
     state: started
+
+- name: Create Docker configuration directory
+  ansible.builtin.file:
+    path: /etc/docker
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Configure Docker daemon metrics
+  ansible.builtin.copy:
+    dest: /etc/docker/daemon.json
+    owner: root
+    group: root
+    mode: "0644"
+    content: |
+      {
+        "experimental": true,
+        "metrics-addr": "{{ server_ip }}:9323"
+      }
+  notify: Restart Docker
 
 - name: Create Moodle root directory
   ansible.builtin.file:
