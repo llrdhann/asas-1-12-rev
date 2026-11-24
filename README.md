@@ -2,18 +2,18 @@
 
 Repository ini menyiapkan **Server A** sebagai server mandiri untuk website, Moodle, DNS, dan monitoring. Moodle dipindahkan dari backup Server `.211`. Server B hanya dipantau sebagai peer; tidak dikelola oleh Ansible di repository ini.
 
-> **Status:** dokumentasi ini menjelaskan alur yang ada di playbook. Restore mengubah direktori aplikasi Moodle dan mengimpor SQL ke database tujuan yang harus kosong. Lakukan hanya pada Server A baru/yang sudah disiapkan untuk migrasi, setelah backup rollback tersedia. Restore belum memiliki rollback otomatis dan belum dibuktikan melalui deployment langsung; jangan menganggap migrasi selesai sebelum semua validasi manual berhasil.
+> **Status:** dokumentasi ini menjelaskan alur yang ada di playbook. Restore mengubah direktori aplikasi Moodle dan mengimpor SQL ke database tujuan yang harus kosong. Lakukan hanya pada Server A baru/yang sudah disiapkan untuk migrasi, setelah backup rollback tersedia. Restore belum memiliki rollback otomatis. Jangan menganggap migrasi selesai sebelum semua validasi manual berhasil.
 
 ## 1. Topologi dan batas pengelolaan
 
 | Host | IP contoh | Peran |
 |---|---:|---|
-| Server A | `172.20.3.100` | Satu-satunya target deployment Ansible |
+| Server A | `10.194.156.38` | Satu-satunya target deployment Ansible |
 | Server B | `172.20.3.242` | Peer monitoring saja; milik pihak lain |
 | Server sumber lama | `172.20.3.211` | Sumber backup dan rollback; tidak diubah playbook |
 
 - Semua playbook deployment menggunakan `hosts: serverA`.
-- `serverB` hanya menjadi sumber target scrape Prometheus. Jangan jalankan playbook dengan `--limit all` atau mengubah pola host menjadi `all`.
+- `serverB` hanya menjadi sumber target scrape Prometheus. Jangan menjalankan deployment dengan `--limit all` atau mengubah pola host menjadi `all`.
 - Bind9 berjalan native pada Ubuntu Server A.
 - Moodle PHP-FPM, MariaDB 10.11, dan Nginx berjalan menggunakan Docker Compose.
 - Website statis: `lingga-ramadhan.net` dan `www.lingga-ramadhan.net`.
@@ -49,7 +49,7 @@ Jika distro menyediakan versi Ansible terlalu lama, gunakan metode instalasi Ans
 Tes koneksi sebelum deployment:
 
 ```bash
-ssh ling@172.20.3.100
+ssh ling@10.194.156.38
 ```
 
 Ganti user dan IP sesuai Server A. Setelah SSH berhasil, lanjutkan dari control node.
@@ -77,7 +77,7 @@ serverB ansible_host=172.20.3.242 server_ip=172.20.3.242
 Ubah alamat Server A. `ansible_host` mengikuti `server_ip` secara otomatis:
 
 ```yaml
-server_ip: "172.20.3.100"
+server_ip: "10.194.156.38"
 ansible_host: "{{ server_ip }}"
 server_role: primary
 ```
@@ -90,8 +90,8 @@ Periksa nilai berikut dan ubah hanya jika kondisi jaringan/layanan berbeda:
 
 | Variabel | Kapan perlu diubah |
 |---|---|
-| `bind_network_cidr` | Subnet LAN tempat DNS boleh melayani query/recursive; contoh `172.20.3.0/24` |
-| `bind_reverse_zone` | Jika subnet/reverse DNS berubah; contoh saat ini `3.20.172.in-addr.arpa` untuk `172.20.3.0/24` |
+| `bind_network_cidr` | Subnet LAN tempat DNS boleh melayani query/recursive |
+| `bind_reverse_zone` | Jika subnet/reverse DNS berubah |
 | `bind_reverse_file` | Jika nama/path file reverse zone disesuaikan |
 | `bind_forwarders` | Jika DNS host perlu meneruskan query ke resolver tertentu; default `[]` |
 | `peer_moodle_url` | Isi URL Moodle Server B yang benar-benar dapat dijangkau dari Server A; kosong berarti probe HTTP Moodle peer tidak dibuat |
@@ -171,7 +171,7 @@ Simpan backup rollback Server A secara terpisah. Jangan masukkan backup SQL, sou
 
 ### G. Website statis
 
-Repository ini **tidak** menyertakan konten website asli dari `/opt/moodle/web` di Server `.211`. Sebelum `prepare-serverA.yml`, salin isi website asli ke `/opt/moodle/web` pada Server A. Jika folder kosong, role website akan membuat halaman placeholder `index.html`.
+Repository ini **tidak** menyertakan konten website asli dari `/opt/moodle/web` di Server `.211`. Sebelum menjalankan `site.yml`, salin isi website asli ke `/opt/moodle/web` pada Server A. Jika folder kosong, role website akan membuat halaman placeholder `index.html`.
 
 Jangan menganggap website statis sudah dimigrasikan hanya karena placeholder berhasil tampil.
 
@@ -202,7 +202,7 @@ for p in playbooks/*.yml; do
   echo "===== $p ====="
   ansible-playbook -i inventory/hosts.ini "$p" --syntax-check
   ansible-playbook -i inventory/hosts.ini "$p" --list-hosts
- done
+done
 ```
 
 Untuk playbook deployment, daftar host harus hanya `serverA`. `reset-monitoring.yml` juga hanya menargetkan Server A. Jangan lanjut jika ada playbook yang menargetkan Server B.
@@ -211,53 +211,46 @@ Untuk playbook deployment, daftar host harus hanya `serverA`. `reset-monitoring.
 
 Jalankan per tahap. Pastikan tahap sebelumnya sukses sebelum lanjut. Semua perintah berikut dijalankan dari root repository di control node.
 
-### Tahap 1 — Persiapan host, DNS, SSL, website, dan monitoring
+### Tahap 1 — Deploy infrastruktur Server A
 
 ```bash
-ansible-playbook -i inventory/hosts.ini playbooks/prepare-serverA.yml \
-  --limit serverA --ask-vault-pass
+ansible-playbook -i inventory/hosts.ini playbooks/site.yml \
+  --limit serverA --ask-vault-pass --skip-tags moodle
 ```
 
-Tahap ini memasang kebutuhan host, Bind9, Docker Engine, sertifikat self-signed, website (placeholder hanya jika belum ada `index.html`), dan monitoring lokal Server A.
+Tahap ini menjalankan role common, Bind9, Docker Engine, SSL, website, dan monitoring tanpa menjalankan role Moodle.
 
-### Tahap 2 — Siapkan MariaDB lokal saja
+### Tahap 2 — Restore source, moodledata, dan SQL
 
-```bash
-ansible-playbook -i inventory/hosts.ini playbooks/prepare-moodle-db.yml \
-  --limit serverA --ask-vault-pass
-```
+**Perhatian: ini tahap yang mengubah data.**
 
-Playbook ini membuat konfigurasi Compose dan menyalakan service MariaDB saja. Belum menjalankan Moodle/Nginx dan belum mengimpor SQL.
+Playbook restore akan mempersiapkan direktori dan konfigurasi Compose, menyalakan MariaDB saja, menunggu database siap, kemudian memulihkan source Moodle, moodledata, dan SQL.
 
-### Tahap 3 — Restore source, moodledata, dan SQL
-
-**Perhatian: ini tahap yang mengubah data.** Playbook menolak direktori Moodle yang sudah berisi file dan database yang sudah memiliki tabel. Ia mengekstrak arsip ke staging, menyalin source ke `/opt/moodle/moodle`, menyalin data ke `/opt/moodle/moodledata`, lalu mengimpor SQL ke database `moodle` di MariaDB Server A.
-
-Pastikan tiga backup, hash, Vault, MariaDB, dan backup rollback sudah benar. Kemudian jalankan konfirmasi eksplisit:
+Pastikan tiga backup, hash, Vault, dan backup rollback sudah benar. Kemudian jalankan:
 
 ```bash
 ansible-playbook -i inventory/hosts.ini playbooks/restore-moodle.yml \
   --limit serverA --ask-vault-pass \
   -e confirm_moodle_restore=true \
-  -e restore_confirmation_text=RESTORE_MOODLE_TO_172.20.3.100
+  -e restore_confirmation_text=RESTORE_MOODLE_TO_10.194.156.38
 ```
 
-Ganti `172.20.3.100` dengan nilai aktual `server_ip`. Teks konfirmasi harus sama persis dengan IP Server A yang dikonfigurasi.
+Ganti IP pada teks konfirmasi sesuai `server_ip` aktual. Konfirmasi harus sama persis.
 
-Restore **belum idempotent untuk kegagalan di tengah jalan**. Jika playbook berhenti setelah mulai menyalin source/data atau saat impor SQL, jangan langsung jalankan ulang. Periksa direktori live, database, dan log MariaDB; lakukan pemulihan manual dari backup rollback atau bersihkan target hanya setelah dipastikan aman. Playbook ini tidak menyediakan rollback otomatis.
+Restore tetap menolak direktori tujuan yang tidak kosong dan database yang sudah berisi tabel. Restore belum menyediakan rollback otomatis untuk kegagalan di tengah proses. Jika playbook berhenti setelah mulai menyalin source/data atau saat impor SQL, jangan langsung menjalankan ulang. Periksa direktori live, database, dan log MariaDB; lakukan pemulihan manual dari backup rollback atau bersihkan target hanya setelah dipastikan aman.
 
-### Tahap 4 — Deploy Moodle, PHP-FPM, Nginx, dan config.php
+### Tahap 3 — Deploy Moodle, PHP-FPM, Nginx, dan config.php
 
-Hanya setelah Tahap 3 sukses:
+Hanya setelah restore berhasil:
 
 ```bash
 ansible-playbook -i inventory/hosts.ini playbooks/site.yml \
-  --limit serverA --ask-vault-pass
+  --limit serverA --ask-vault-pass --tags moodle
 ```
 
-`site.yml` mengulang konfigurasi infrastruktur Server A lalu menjalankan role Moodle. Role membuat `config.php` dari template dan Vault, membangun image PHP, lalu menyalakan Moodle, MariaDB, Nginx, dan exporter lokal.
+Role Moodle membuat `config.php` dari template dan Vault, membangun image PHP, lalu menjalankan layanan Moodle.
 
-### Tahap 5 — Validasi otomatis
+### Tahap 4 — Validasi otomatis
 
 ```bash
 ansible-playbook -i inventory/hosts.ini playbooks/validate.yml \
@@ -266,7 +259,39 @@ ansible-playbook -i inventory/hosts.ini playbooks/validate.yml \
 
 Playbook validasi memeriksa konfigurasi/zone Bind9, DNS lokal, konfigurasi Compose, status container, dan endpoint HTTPS Moodle lokal. Lolos validasi ini belum menggantikan tes login dan pemeriksaan konten Moodle.
 
-### Tahap 6 — Validasi manual sebelum mematikan Server `.211`
+### Menjalankan role tertentu dari `site.yml`
+
+`site.yml` menggunakan tags agar role tertentu bisa dijalankan tanpa harus menjalankan semua role.
+
+Contoh menjalankan monitoring saja:
+
+```bash
+ansible-playbook -i inventory/hosts.ini playbooks/site.yml \
+  --tags monitoring --limit serverA --ask-vault-pass
+```
+
+Menjalankan DNS saja:
+
+```bash
+ansible-playbook -i inventory/hosts.ini playbooks/site.yml \
+  --tags dns --limit serverA --ask-vault-pass
+```
+
+Menjalankan semua role infrastruktur tanpa Moodle:
+
+```bash
+ansible-playbook -i inventory/hosts.ini playbooks/site.yml \
+  --skip-tags moodle --limit serverA --ask-vault-pass
+```
+
+Menjalankan Moodle saja:
+
+```bash
+ansible-playbook -i inventory/hosts.ini playbooks/site.yml \
+  --tags moodle --limit serverA --ask-vault-pass
+```
+
+### Validasi manual sebelum mematikan Server `.211`
 
 - Buka `https://e-learning.lingga-ramadhan.net` dan pastikan sertifikat self-signed dipahami/ditangani pada client.
 - Login dengan akun Moodle yang sudah ada.
@@ -320,8 +345,13 @@ Reset konfigurasi default (mempertahankan data historis Prometheus/Alertmanager 
 ```bash
 ansible-playbook -i inventory/hosts.ini playbooks/reset-monitoring.yml \
   --limit serverA --ask-vault-pass
-ansible-playbook -i inventory/hosts.ini playbooks/prepare-serverA.yml \
-  --limit serverA --ask-vault-pass
+```
+
+Setelah reset selesai, deploy kembali role monitoring:
+
+```bash
+ansible-playbook -i inventory/hosts.ini playbooks/site.yml \
+  --tags monitoring --limit serverA --ask-vault-pass
 ```
 
 Reset penuh menghapus data historis Prometheus/Alertmanager dan state Grafana. Jangan jalankan kecuali memang menghendaki penghapusan tersebut:

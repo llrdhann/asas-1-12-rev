@@ -169,11 +169,72 @@
           - source_sql_tables.stdout | int > 0
         fail_msg: "Dump SQL tidak memiliki CREATE TABLE. Import dibatalkan."
 
+
     - name: Require protected database credentials
       ansible.builtin.assert:
         that:
+          - vault_moodle_db_root_password is defined
           - vault_moodle_db_password is defined
         fail_msg: "Isi dan encrypt Vault sebelum restore database."
+      no_log: true
+
+    - name: Ensure Compose bind-mount directories exist
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: directory
+        owner: root
+        group: root
+        mode: "0755"
+      loop:
+        - "{{ moodle_code_dir }}"
+        - "{{ moodle_data_dir }}"
+        - "{{ moodle_web_dir }}"
+        - "{{ moodle_php_build_dir }}"
+        - "{{ moodle_nginx_dir }}"
+        - "{{ moodle_ssl_dir }}"
+
+    - name: Render protected Compose environment file
+      ansible.builtin.template:
+        src: "{{ playbook_dir }}/../roles/moodle/templates/env.j2"
+        dest: "{{ moodle_root }}/.env"
+        owner: root
+        group: root
+        mode: "0600"
+      no_log: true
+
+    - name: Render Compose definition without starting Moodle or Nginx
+      ansible.builtin.template:
+        src: "{{ playbook_dir }}/../roles/moodle/templates/compose.yml.j2"
+        dest: "{{ moodle_root }}/docker-compose.yml"
+        owner: root
+        group: root
+        mode: "0600"
+      no_log: true
+
+    - name: Start only the new local MariaDB service
+      community.docker.docker_compose_v2:
+        project_src: "{{ moodle_root }}"
+        services:
+          - mariadb
+        state: present
+
+    - name: Wait for MariaDB to become ready
+      ansible.builtin.command:
+        argv:
+          - docker
+          - exec
+          - -e
+          - "MYSQL_PWD={{ vault_moodle_db_root_password }}"
+          - "{{ moodle_container_db }}"
+          - mariadb-admin
+          - -uroot
+          - ping
+          - --silent
+      register: mariadb_ready
+      retries: 30
+      delay: 5
+      until: mariadb_ready.rc == 0
+      changed_when: false
       no_log: true
 
     - name: Check that the prepared local MariaDB container is running
@@ -191,7 +252,7 @@
       ansible.builtin.assert:
         that:
           - db_container_running.stdout == 'true'
-        fail_msg: "MariaDB Server A belum berjalan. Jalankan prepare-moodle-db.yml terlebih dahulu."
+        fail_msg: "Persiapan MariaDB gagal. Restore dibatalkan."
 
     - name: Check whether the target Moodle database already contains tables
       ansible.builtin.command:
@@ -295,7 +356,8 @@
     - name: Report successful file and database restore
       ansible.builtin.debug:
         msg: >-
-          Source Moodle dan moodledata telah dipulihkan ke Server A; SQL telah diimpor
-          ke database lokal. config.php belum dibuat oleh role Moodle. Lanjutkan dengan
-          playbooks/site.yml agar Ansible membuat config.php, membangun PHP image,
-          menjalankan Nginx/PHP, lalu jalankan playbooks/validate.yml.
+          Source Moodle dan moodledata telah dipulihkan ke Server A; SQL telah
+          diimpor ke database lokal. config.php belum dibuat oleh role Moodle.
+          Lanjutkan dengan playbooks/site.yml agar Ansible membuat config.php,
+          membangun PHP image, menjalankan Nginx/PHP, lalu jalankan
+          playbooks/validate.yml.

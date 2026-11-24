@@ -4,16 +4,23 @@
   become: true
   gather_facts: true
   roles:
-    - common
-    - bind9
-    - docker_engine
-    - ssl
-    - website
-    - monitoring
+    - role: common
+      tags: [common, infrastructure]
+    - role: bind9
+      tags: [bind9, dns, infrastructure]
+    - role: docker_engine
+      tags: [docker, infrastructure]
+    - role: ssl
+      tags: [ssl, infrastructure]
+    - role: website
+      tags: [website, infrastructure]
+    - role: monitoring
+      tags: [monitoring, infrastructure]
 
 - name: Deploy Moodle stack after source restoration
   hosts: serverA
   become: true
   gather_facts: false
   roles:
-    - moodle
+    - role: moodle
+      tags: [moodle]
