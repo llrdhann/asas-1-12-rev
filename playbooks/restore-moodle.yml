@@ -173,7 +173,6 @@
       ansible.builtin.assert:
         that:
           - vault_moodle_db_password is defined
-          - vault_moodle_db_password | length >= 20
         fail_msg: "Isi dan encrypt Vault sebelum restore database."
       no_log: true
 

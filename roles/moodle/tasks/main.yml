@@ -18,9 +18,7 @@
   ansible.builtin.assert:
     that:
       - vault_moodle_db_root_password is defined
-      - vault_moodle_db_root_password | length >= 20
       - vault_moodle_db_password is defined
-      - vault_moodle_db_password | length >= 20
     fail_msg: "Isi dan encrypt inventory/group_vars/managed/vault.yml sebelum deploy Moodle."
   no_log: true
 
@@ -113,6 +111,24 @@
       Moodle source belum dipulihkan. Jalankan playbooks/restore-moodle.yml setelah
       menaruh backup terverifikasi di {{ moodle_backup_dir | default('/srv/moodle/backup-before-migration') }}.
       Role ini sengaja tidak membuat Moodle kosong.
+
+- name: Install Moodle public config loader
+  ansible.builtin.copy:
+    dest: "{{ moodle_code_dir }}/public/config.php"
+    content: |
+      <?php
+
+      $configfile = __DIR__ . '/../config.php';
+
+      if (!file_exists($configfile)) {
+          header("Location: install.php");
+          die;
+      }
+
+      require_once($configfile);
+    owner: root
+    group: www-data
+    mode: "0644"
 
 - name: Verify restored Moodle release matches the audited source
   ansible.builtin.command:

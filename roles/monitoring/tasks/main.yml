@@ -254,6 +254,23 @@
     update_cache: true
   notify: Restart Grafana
 
+- name: Configure Grafana server binding
+  ansible.builtin.lineinfile:
+    path: /etc/grafana/grafana.ini
+    regexp: '^\s*;?\s*{{ item.key }}\s*='
+    line: "{{ item.key }} = {{ item.value }}"
+    insertafter: '^\[server\]'
+  loop:
+    - key: http_addr
+      value: "{{ server_ip }}"
+    - key: http_port
+      value: "{{ grafana_port }}"
+    - key: domain
+      value: "{{ grafana_domain }}"
+    - key: root_url
+      value: "http://{{ server_ip }}:{{ grafana_port }}/"
+  notify: Restart Grafana
+
 - name: Ensure Grafana provisioning directories exist
   ansible.builtin.file:
     path: "{{ item }}"
@@ -333,9 +350,9 @@
     status_code: 200
     return_content: false
   loop:
-    - "http://127.0.0.1:{{ prometheus_port }}/-/healthy"
-    - "http://127.0.0.1:{{ alertmanager_port }}/-/healthy"
-    - "http://127.0.0.1:{{ blackbox_exporter_port }}/"
+    - "http://{{ server_ip }}:{{ prometheus_port }}/-/healthy"
+    - "http://{{ server_ip }}:{{ alertmanager_port }}/-/healthy"
+    - "http://{{ server_ip }}:{{ blackbox_exporter_port }}/"
 
 # Read-only peer endpoint checks from Server A. These tasks do not SSH to or
 # configure Server B; they only verify that its owner-provided exporters answer.

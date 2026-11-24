@@ -5,6 +5,6 @@ datasources:
     uid: prometheus-peer
     type: prometheus
     access: proxy
-    url: http://127.0.0.1:{{ prometheus_port }}
+    url: http://{{ server_ip }}:{{ prometheus_port }}
     isDefault: true
     editable: true

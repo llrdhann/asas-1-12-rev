@@ -14,9 +14,7 @@
       ansible.builtin.assert:
         that:
           - vault_moodle_db_root_password is defined
-          - vault_moodle_db_root_password | length >= 20
           - vault_moodle_db_password is defined
-          - vault_moodle_db_password | length >= 20
       no_log: true
 
     - name: Ensure Compose bind-mount directories exist

@@ -8,7 +8,7 @@ alerting:
   alertmanagers:
     - static_configs:
         - targets:
-            - "127.0.0.1:{{ alertmanager_port }}"
+            - "{{ server_ip }}:{{ alertmanager_port }}"
 
 rule_files:
   - "{{ prometheus_config_dir }}/alert-rules.yml"
@@ -36,7 +36,7 @@ scrape_configs:
       - source_labels: [__param_target]
         target_label: instance
       - target_label: __address__
-        replacement: "127.0.0.1:{{ blackbox_exporter_port }}"
+        replacement: "{{ server_ip }}:{{ blackbox_exporter_port }}"
 
   # Local MariaDB exporter is bound to loopback only.
   - job_name: "self_mariadb"
@@ -83,5 +83,5 @@ scrape_configs:
       - source_labels: [__param_target]
         target_label: instance
       - target_label: __address__
-        replacement: "127.0.0.1:{{ blackbox_exporter_port }}"
+        replacement: "{{ server_ip }}:{{ blackbox_exporter_port }}"
 {% endif %}

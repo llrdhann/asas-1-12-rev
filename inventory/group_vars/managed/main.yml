@@ -26,7 +26,7 @@ moodle_db_name: moodle
 moodle_db_user: moodle
 moodle_db_host: moodle-db
 moodle_wwwroot: "https://e-learning.lingga-ramadhan.net"
-moodle_php_image: "moodle-serverA-php:8.3"
+moodle_php_image: "moodle-servera-php:8.3"
 moodle_nginx_image: "nginx:alpine"
 mariadb_image: "mariadb:10.11"
 mysql_exporter_image: "prom/mysqld-exporter:v0.17.2"
@@ -61,10 +61,10 @@ bind_package: bind9
 bind_service: named
 bind_config_dir: /etc/bind
 bind_zone_name: lingga-ramadhan.net
-bind_reverse_zone: 3.20.172.in-addr.arpa
+bind_reverse_zone: 156.194.10.in-addr.arpa
 bind_zone_file: /etc/bind/db.lingga-ramadhan.net
-bind_reverse_file: /etc/bind/db.172.20.3
-bind_network_cidr: 172.20.3.0/24
+bind_reverse_file: /etc/bind/db.10.194.156
+bind_network_cidr: 10.194.156.0/24
 bind_forwarders: []
 bind_zone_serial: "{{ ansible_date_time.date | replace('-', '') }}01"
 
@@ -90,7 +90,7 @@ prometheus_data_dir: /var/lib/prometheus
 alertmanager_config_dir: /etc/alertmanager
 alertmanager_data_dir: /var/lib/alertmanager
 blackbox_config_dir: /etc/blackbox_exporter
-prometheus_listen_address: "127.0.0.1:{{ prometheus_port }}"
+prometheus_listen_address: "{{ server_ip }}:{{ prometheus_port }}"
 grafana_domain: "{{ server_ip }}"
 grafana_repo_key: https://apt.grafana.com/gpg.key
 
@@ -100,9 +100,9 @@ peer_ip: "{{ hostvars[peer_host].server_ip }}"
 # monitoring endpoints; it does not install or change any service on Server B.
 # Set this to the exact public/internal Moodle URL reachable from Server A.
 peer_moodle_url: ""
-peer_moodle_monitor_enabled: true
+peer_moodle_monitor_enabled: false
 peer_docker_monitor_enabled: false
-peer_mariadb_monitor_enabled: true
+peer_mariadb_monitor_enabled: false
 peer_node_exporter_target: "{{ peer_ip }}:{{ node_exporter_port }}"
 peer_mariadb_exporter_target: "{{ peer_ip }}:{{ mysql_exporter_port }}"
 
@@ -114,4 +114,4 @@ alert_disk_percent: 90
 # Secrets are loaded from inventory/group_vars/managed/vault.yml.
 grafana_admin_password: "{{ vault_grafana_admin_password }}"
 mysql_exporter_password: "{{ vault_mysql_exporter_password }}"
-alert_email_enabled: false
+alert_email_enabled: true
