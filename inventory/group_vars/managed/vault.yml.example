@@ -1,6 +1,8 @@
 ---
-# Copy to vault.yml, replace values, then encrypt with ansible-vault.
-vault_grafana_admin_password: "CHANGE_ME_LONG_RANDOM"
-vault_moodle_db_root_password: "CHANGE_ME_LONG_RANDOM"
-vault_moodle_db_password: "CHANGE_ME_LONG_RANDOM"
-vault_mysql_exporter_password: "CHANGE_ME_LONG_RANDOM"
+vault_grafana_admin_password: "GANTI_PASSWORD_GRAFANA"
+vault_moodle_db_root_password: "GANTI_PASSWORD_DB_ROOT"
+vault_moodle_db_password: "GANTI_PASSWORD_DB_MOODLE"
+vault_mysql_exporter_password: "GANTI_PASSWORD_EXPORTER"
+vault_smtp_username: "EMAIL_SMTP"
+vault_smtp_password: "PASSWORD_SMTP"
+vault_alert_email_to: "EMAIL_PENERIMA_ALERT"
