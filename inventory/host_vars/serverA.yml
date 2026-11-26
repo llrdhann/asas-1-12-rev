@@ -1,3 +1,4 @@
 server_ip: "10.28.95.38"
+server_network_cidr: "10.28.95.0/24"
 ansible_host: "{{ server_ip }}"
 server_role: primary

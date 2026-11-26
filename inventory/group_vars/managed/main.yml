@@ -63,7 +63,7 @@ bind_config_dir: /etc/bind
 
 bind_zone_name: lingga-ramadhan.net
 
-bind_network_cidr: "{{ server_ip.split('.')[0] }}.{{ server_ip.split('.')[1] }}.{{ server_ip.split('.')[2] }}.0/24"
+bind_network_cidr: "{{ server_network_cidr }}"
 
 bind_reverse_zone: "{{ server_ip.split('.')[2] }}.{{ server_ip.split('.')[1] }}.{{ server_ip.split('.')[0] }}.in-addr.arpa"
 

@@ -305,26 +305,114 @@ Jangan menghapus atau mematikan Server `.211` sebelum pengujian ini selesai dan 
 
 ## 6. Mengubah IP Server A atau subnet
 
-### Jika hanya IP Server A yang berubah dalam subnet yang sama
+Konfigurasi jaringan Server A dipisahkan menjadi dua variabel:
 
-1. Pastikan IP baru sudah dipasang manual pada Ubuntu/Netplan dan SSH bisa dijangkau.
-2. Ubah `server_ip` di `inventory/host_vars/serverA.yml`.
-3. Pastikan firewall Server B mengizinkan IP Server A baru ke exporter `9100` dan `9104`.
-4. Jalankan kembali `site.yml` dengan `--limit serverA`; SSL role memeriksa SAN dan memperbarui sertifikat jika IP berubah.
-5. Perbarui DNS eksternal, router/NAT, DHCP reservation, dan trust sertifikat di client bila diperlukan.
+- `server_ip`: alamat IP yang digunakan Server A.
+- `server_network_cidr`: alamat network beserta prefix subnet yang digunakan Server A.
 
-### Jika subnet Server A berubah
+Pemisahan ini diperlukan karena alamat IP server dan subnet tidak selalu menggunakan prefix `/24`.
 
-Selain langkah di atas, ubah `bind_network_cidr`, `bind_reverse_zone`, dan `bind_reverse_file` di `inventory/group_vars/managed/main.yml`. Pastikan nama reverse zone dan alamat jaringan benar. Atur gateway, resolver, dan NIC secara manual sebelum menjalankan Ansible.
+### 6.1. Mengatur IP dan subnet
 
-Paksa pembuatan ulang sertifikat hanya jika memang diperlukan:
+Atur kedua variabel di `inventory/host_vars/serverA.yml`.
+
+**Contoh konfigurasi subnet `/24`:**
+
+```yaml
+server_ip: "10.28.95.38"
+server_network_cidr: "10.28.95.0/24"
+ansible_host: "{{ server_ip }}"
+server_role: primary
+```
+
+**Contoh konfigurasi subnet `/28`:**
+
+```yaml
+server_ip: "10.28.95.38"
+server_network_cidr: "10.28.95.32/28"
+ansible_host: "{{ server_ip }}"
+server_role: primary
+```
+
+Pastikan `server_ip` termasuk dalam rentang alamat host pada `server_network_cidr`.
+
+Jika menggunakan subnet `/28`, contoh `10.28.95.32/28` memiliki rentang:
+
+- Network: `10.28.95.32`
+- Host: `10.28.95.33`–`10.28.95.46`
+- Broadcast: `10.28.95.47`
+
+### 6.2. Konfigurasi BIND9
+
+Pada `inventory/group_vars/managed/main.yml`, gunakan variabel subnet dari `serverA.yml`:
+
+```yaml
+bind_network_cidr: "{{ server_network_cidr }}"
+```
+
+Variabel `bind_network_cidr` digunakan untuk menentukan jaringan yang diizinkan mengakses layanan DNS sesuai konfigurasi BIND9.
+
+**Reverse DNS merupakan konfigurasi yang berbeda.** Variabel berikut menentukan zona reverse DNS dan file zona yang digunakan:
+
+```yaml
+bind_reverse_zone: "95.28.10.in-addr.arpa"
+bind_reverse_file: "/etc/bind/db.10.28.95"
+```
+
+Nilai di atas merupakan contoh zona reverse DNS untuk seluruh jaringan `10.28.95.0/24`. Jangan otomatis menggantinya hanya karena alamat server menggunakan subnet `/28`.
+
+Jika Server A hanya mendapat delegasi reverse DNS untuk `10.28.95.32/28`, diperlukan konfigurasi *classless reverse DNS delegation* menggunakan mekanisme RFC 2317. Salah satu contoh nama zona untuk rentang tersebut adalah:
+
+```text
+32-47.95.28.10.in-addr.arpa
+```
+
+Nama zona tersebut bukan konfigurasi yang bisa langsung digunakan tanpa delegasi dari pengelola zona reverse DNS induk.
+
+Karena itu:
+
+- Gunakan zona `/24` apabila memang mendapat kewenangan mengelola seluruh `/24`.
+- Jika hanya mendapat delegasi `/28`, sesuaikan konfigurasi dengan delegasi RFC 2317 yang diberikan oleh pengelola DNS induk.
+- Jangan mengubah reverse zone hanya berdasarkan perubahan prefix subnet tanpa memeriksa delegasi DNS yang tersedia.
+
+### 6.3. Langkah ketika jaringan berubah
+
+1. Sesuaikan konfigurasi Netplan dengan IP, prefix subnet, gateway, dan DNS jaringan yang baru.
+2. Perbarui `server_ip` pada `inventory/host_vars/serverA.yml`.
+3. Perbarui `server_network_cidr` jika prefix atau network berubah.
+4. Periksa `bind_reverse_zone` dan `bind_reverse_file`. Pastikan keduanya sesuai dengan delegasi reverse DNS yang tersedia.
+5. Pastikan konfigurasi DNS, gateway, dan koneksi SSH sudah sesuai dengan jaringan baru.
+6. Jalankan kembali konfigurasi infrastruktur:
+
+```bash
+ansible-playbook -i inventory/hosts.ini playbooks/site.yml \
+  --limit serverA --tags infrastructure --ask-vault-pass
+```
+
+7. Jalankan validasi:
+
+```bash
+ansible-playbook -i inventory/hosts.ini playbooks/validate.yml \
+  --limit serverA --ask-vault-pass
+```
+
+**Catatan:** Mengubah variabel Ansible tidak otomatis mengubah konfigurasi IP pada Netplan. Keduanya harus disesuaikan. Pastikan juga koneksi SSH tetap dapat dijangkau setelah perubahan jaringan.
+
+### 6.4. Memperbarui sertifikat SSL
+
+Jika IP atau domain Server A berubah dan sertifikat SSL perlu diperbarui, gunakan playbook khusus berikut:
 
 ```bash
 ansible-playbook -i inventory/hosts.ini playbooks/ssl-renew.yml \
   --limit serverA --ask-vault-pass
 ```
 
-Sertifikat yang dibuat adalah self-signed. Browser/client tidak otomatis mempercayainya.
+Playbook ini digunakan untuk menjalankan proses pembaruan sertifikat SSL tanpa harus menjalankan seluruh role infrastruktur.
+
+Sertifikat yang dibuat adalah *self-signed*. Browser/client tidak otomatis mempercayainya sehingga sertifikat perlu dipercaya secara manual pada client yang digunakan.
+
+**Catatan:** Pembaruan sertifikat diperlukan apabila perubahan IP atau domain membuat identitas pada sertifikat (SAN) tidak lagi sesuai. Periksa hasil sertifikat dan pastikan layanan HTTPS tetap berjalan setelah pembaruan.
+
 
 ## 7. Monitoring Server B
 
