@@ -450,7 +450,65 @@ ansible-playbook -i inventory/hosts.ini playbooks/reset-monitoring.yml \
   -e reset_mode=full -e confirm_full_reset=true
 ```
 
-## 9. Git dan file rahasia
+## 9. Reset Deployment Moodle Server A
+
+Playbook `reset-serverA.yml` digunakan untuk menghapus deployment Moodle Server A agar proses restore dan deployment dapat diulang dari kondisi awal.
+
+Reset ini tidak ditujukan untuk menghapus seluruh infrastruktur Server A.
+
+### 9.1. Komponen yang dihapus
+
+Playbook melakukan beberapa tindakan berikut:
+
+- Menghentikan dan menghapus container Moodle melalui Docker Compose.
+- Menghapus Docker volumes yang digunakan oleh deployment Moodle, termasuk volume database.
+- Menghapus direktori source Moodle aktif.
+- Menghapus direktori `moodledata` aktif.
+
+**Perhatian:** Proses ini menghapus database Moodle aktif beserta data yang tersimpan di volume terkait. Pastikan backup tersedia dan sudah diverifikasi sebelum menjalankan reset.
+
+### 9.2. Komponen yang dipertahankan
+
+Komponen berikut tidak ditujukan untuk dihapus oleh playbook reset:
+
+- Backup Moodle (`moodle.sql.gz`, `moodle-source.tar.gz`, dan `moodledata.tar.gz`).
+- Repository Ansible dan konfigurasi deployment.
+- File `.env` dan `docker-compose.yml`.
+- Konfigurasi Nginx dan SSL.
+- Docker Engine.
+- BIND9 dan konfigurasi DNS.
+- Grafana, Prometheus, Alertmanager, dan konfigurasi monitoring.
+- Website statis `lingga-ramadhan.net`.
+
+### 9.3. Menjalankan reset
+
+Playbook memiliki pemeriksaan keamanan untuk memastikan target adalah Server A, peran server sesuai, dan konfirmasi reset diberikan secara eksplisit.
+
+Periksa terlebih dahulu konfigurasi dan backup yang akan digunakan. Jangan menjalankan reset ketika Moodle masih dibutuhkan atau ketika backup belum diverifikasi.
+
+Perintah pemeriksaan sintaks:
+
+```bash
+ansible-playbook -i inventory/hosts.ini playbooks/reset-serverA.yml \
+  --syntax-check --ask-vault-pass
+```
+
+Jika sudah yakin dan seluruh persyaratan konfirmasi dalam playbook terpenuhi, jalankan:
+
+```bash
+ansible-playbook -i inventory/hosts.ini playbooks/reset-serverA.yml \
+  --limit serverA --ask-vault-pass \
+  -e confirm_serverA_reset=true \
+  -e reset_confirmation_text=RESET_SERVERA_MOODLE_TO_10.28.95.38
+```
+
+Sesuaikan teks konfirmasi dengan nilai IP Server A saat ini dan pemeriksaan yang ditentukan dalam playbook.
+
+Setelah reset selesai, deployment Moodle dapat diulang melalui tahapan restore dan deployment Moodle pada bagian prosedur deployment.
+
+**Peringatan:** Jangan menjalankan playbook ini hanya untuk memperbarui IP, subnet, SSL, atau konfigurasi monitoring. Reset akan menghapus data deployment Moodle aktif.
+
+## 10. Git dan file rahasia
 
 Boleh masuk Git:
 
@@ -470,7 +528,7 @@ git diff --cached --stat
 
 Pastikan tidak ada secret atau file backup dalam staged changes.
 
-## 10. Troubleshooting dan batasan penting
+## 11. Troubleshooting dan batasan penting
 
 - **SSH gagal:** cek IP, route, firewall, username, key, dan sudo di luar Ansible terlebih dahulu.
 - **Backup ditolak:** cocokkan nama file, SHA-256, versi/build Moodle, dan struktur arsip. Jangan mematikan pemeriksaan hash hanya agar playbook lanjut.
