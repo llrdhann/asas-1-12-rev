@@ -60,11 +60,17 @@ ssl_key_file: "{{ moodle_ssl_dir }}/lingga-ramadhan.net.key"
 bind_package: bind9
 bind_service: named
 bind_config_dir: /etc/bind
+
 bind_zone_name: lingga-ramadhan.net
-bind_reverse_zone: 156.194.10.in-addr.arpa
+
+bind_network_cidr: "{{ server_ip.split('.')[0] }}.{{ server_ip.split('.')[1] }}.{{ server_ip.split('.')[2] }}.0/24"
+
+bind_reverse_zone: "{{ server_ip.split('.')[2] }}.{{ server_ip.split('.')[1] }}.{{ server_ip.split('.')[0] }}.in-addr.arpa"
+
 bind_zone_file: /etc/bind/db.lingga-ramadhan.net
-bind_reverse_file: /etc/bind/db.10.194.156
-bind_network_cidr: 10.194.156.0/24
+
+bind_reverse_file: "/etc/bind/db.{{ server_ip.split('.')[0] }}.{{ server_ip.split('.')[1] }}.{{ server_ip.split('.')[2] }}"
+
 bind_forwarders: []
 bind_zone_serial: "{{ ansible_date_time.date | replace('-', '') }}01"
 

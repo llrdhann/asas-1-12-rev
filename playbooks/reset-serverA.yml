@@ -1,0 +1,188 @@
+---
+- name: Safely reset only the Moodle deployment on Server A
+  hosts: serverA
+  become: true
+  gather_facts: false
+  serial: 1
+
+  vars:
+    confirm_serverA_reset: false
+    reset_confirmation_text: ""
+    expected_reset_confirmation: "RESET_SERVERA_MOODLE_TO_{{ server_ip }}"
+
+  tasks:
+    - name: Require Server A identity and explicit confirmation
+      ansible.builtin.assert:
+        that:
+          - inventory_hostname == 'serverA'
+          - server_role == 'primary'
+          - moodle_root == '/opt/moodle'
+          - moodle_backup_dir == '/opt/moodle/backup'
+          - moodle_code_dir == '/opt/moodle/moodle'
+          - moodle_data_dir == '/opt/moodle/moodledata'
+          - moodle_compose_project == 'moodle'
+          - moodle_container_php == 'moodle'
+          - moodle_container_db == 'moodle-db'
+          - moodle_container_nginx == 'moodle-nginx'
+          - confirm_serverA_reset | bool
+          - reset_confirmation_text == expected_reset_confirmation
+        fail_msg: >-
+          Reset dibatalkan. Target harus Server A dan konfirmasi harus persis:
+          {{ expected_reset_confirmation }}.
+
+    - name: Verify the three original backup archives exist
+      ansible.builtin.stat:
+        path: "{{ item }}"
+      loop:
+        - "{{ moodle_sql_archive }}"
+        - "{{ moodle_source_archive }}"
+        - "{{ moodledata_archive }}"
+      register: reset_backup_files
+
+    - name: Stop if any required backup is missing
+      ansible.builtin.assert:
+        that:
+          - reset_backup_files.results | map(attribute='stat.exists') | min
+        fail_msg: >-
+          Reset dibatalkan: backup SQL, source Moodle, atau moodledata
+          tidak lengkap. Tidak ada data live yang dihapus.
+
+    - name: Calculate SHA-256 checksums of all backup archives
+      ansible.builtin.stat:
+        path: "{{ item }}"
+        checksum_algorithm: sha256
+      loop:
+        - "{{ moodle_sql_archive }}"
+        - "{{ moodle_source_archive }}"
+        - "{{ moodledata_archive }}"
+      register: reset_backup_hashes
+
+    - name: Require all backup checksums to match
+      ansible.builtin.assert:
+        that:
+          - reset_backup_hashes.results[0].stat.checksum == moodle_sql_sha256
+          - reset_backup_hashes.results[1].stat.checksum == moodle_source_sha256
+          - reset_backup_hashes.results[2].stat.checksum == moodledata_sha256
+        fail_msg: >-
+          Reset dibatalkan: checksum backup tidak cocok.
+          Tidak ada resource Docker atau data live yang dihapus.
+
+    - name: Verify gzip integrity of every backup archive
+      ansible.builtin.command:
+        argv:
+          - gzip
+          - -t
+          - "{{ item }}"
+      loop:
+        - "{{ moodle_sql_archive }}"
+        - "{{ moodle_source_archive }}"
+        - "{{ moodledata_archive }}"
+      changed_when: false
+
+    - name: Verify Moodle source archive layout
+      ansible.builtin.shell: |
+        set -o pipefail
+        tar -tzf "{{ moodle_source_archive }}" |
+          grep -E '(^|/)moodle/public/version\.php$' >/dev/null
+      args:
+        executable: /bin/bash
+      changed_when: false
+
+    - name: Verify moodledata archive layout
+      ansible.builtin.shell: |
+        set -o pipefail
+        tar -tzf "{{ moodledata_archive }}" |
+          grep -E '(^|/)moodledata/filedir(/|$)' >/dev/null
+      args:
+        executable: /bin/bash
+      changed_when: false
+
+    - name: Verify SQL backup contains CREATE TABLE statements
+      ansible.builtin.shell: |
+        set -o pipefail
+        gzip -dc "{{ moodle_sql_archive }}" |
+          grep -E '^CREATE TABLE' >/dev/null
+      args:
+        executable: /bin/bash
+      changed_when: false
+    - name: Require the existing Moodle Compose definition
+      ansible.builtin.stat:
+        path: "{{ moodle_root }}/docker-compose.yml"
+      register: reset_compose_file
+
+    - name: Refuse reset if Compose definition is missing
+      ansible.builtin.assert:
+        that:
+          - reset_compose_file.stat.exists
+          - reset_compose_file.stat.isreg
+        fail_msg: >-
+          Reset dibatalkan: docker-compose.yml tidak ditemukan.
+          Playbook tidak akan menghapus resource Docker berdasarkan nama saja.
+
+    - name: Validate Moodle Compose project
+      ansible.builtin.command:
+        argv:
+          - docker
+          - compose
+          - --project-name
+          - "{{ moodle_compose_project }}"
+          - --project-directory
+          - "{{ moodle_root }}"
+          - --file
+          - "{{ moodle_root }}/docker-compose.yml"
+          - config
+          - --quiet
+      changed_when: false
+      no_log: true
+
+    - name: Remove only resources belonging to Moodle Compose project
+      ansible.builtin.command:
+        argv:
+          - docker
+          - compose
+          - --project-name
+          - "{{ moodle_compose_project }}"
+          - --project-directory
+          - "{{ moodle_root }}"
+          - --file
+          - "{{ moodle_root }}/docker-compose.yml"
+          - down
+          - --volumes
+          - --remove-orphans
+      register: reset_compose_down
+      changed_when: reset_compose_down.rc == 0
+
+    - name: Remove live Moodle source directory
+      ansible.builtin.file:
+        path: "{{ moodle_code_dir }}"
+        state: absent
+
+    - name: Remove live Moodle data directory
+      ansible.builtin.file:
+        path: "{{ moodle_data_dir }}"
+        state: absent
+
+    - name: Verify live Moodle directories are absent
+      ansible.builtin.stat:
+        path: "{{ item }}"
+      loop:
+        - "{{ moodle_code_dir }}"
+        - "{{ moodle_data_dir }}"
+      register: reset_live_directories
+
+    - name: Require both live directories to be clean
+      ansible.builtin.assert:
+        that:
+          - not reset_live_directories.results[0].stat.exists
+          - not reset_live_directories.results[1].stat.exists
+        fail_msg: "Reset belum bersih. Periksa direktori Moodle."
+
+    - name: Report reset completion
+      ansible.builtin.debug:
+        msg:
+          - "Reset Moodle Server A selesai."
+          - "Resource Compose project Moodle dan named volume project telah dihapus."
+          - "Live source dan moodledata telah dibersihkan."
+          - "Backup, website, PHP build context, Nginx config, SSL, template, dan repository dipertahankan."
+          - "Docker Engine, IP, SSH, DNS, dan monitoring tidak disentuh."
+          - "File runtime .env dan docker-compose.yml dipertahankan; playbook deployment akan merender ulang konfigurasi yang dikelolanya."
