@@ -672,36 +672,60 @@ sudo nano /etc/netplan/NAMA_FILE.yaml
 
 Jangan membuat konfigurasi duplikat tanpa memeriksa konfigurasi yang sudah ada.
 
-### 7.3. Contoh konfigurasi Netplan IP statis
+### 7.3. Contoh konfigurasi Netplan
 
-Contoh berikut hanya template. Ganti nama interface, IP, gateway, dan DNS sesuai jaringan yang sebenarnya.
+Contoh berikut berdasarkan konfigurasi jaringan Server A pada lingkungan pengujian.
+
+Edit file Netplan yang digunakan:
+
+```bash
+sudo nano /etc/netplan/00-installer-config.yaml
+```
+
+Contoh isi konfigurasi:
 
 ```yaml
 network:
   version: 2
   ethernets:
-    NAMA_INTERFACE:
-      dhcp4: false
+    enp0s3:
+      addresses:
+        - 10.10.10.254/24
+
+    enp0s8:
+      dhcp4: true
+      dhcp4-overrides:
+        use-dns: false
+
+    enp0s9:
       addresses:
         - 10.28.95.38/24
-      routes:
-        - to: default
-          via: IP_GATEWAY
       nameservers:
         addresses:
-          - IP_DNS
+          - 10.28.95.38
+          - 8.8.8.8
+          - 1.1.1.1
+        search:
+          - "~."
 ```
 
 Keterangan:
 
-| Parameter | Keterangan |
+| Interface | Fungsi |
 |---|---|
-| `NAMA_INTERFACE` | Interface yang digunakan untuk jaringan Server A |
-| `addresses` | IP dan prefix subnet |
-| `routes` | Default route menuju gateway |
-| `nameservers` | DNS resolver yang digunakan sistem |
+| `enp0s3` | Interface jaringan internal dengan IP statis `10.10.10.254/24`. |
+| `enp0s8` | Mendapatkan konfigurasi IP melalui DHCP, tetapi tidak menggunakan DNS dari DHCP. |
+| `enp0s9` | Interface jaringan utama Server A dengan IP statis `10.28.95.38/24`. |
 
-Jika konfigurasi sebelumnya menggunakan beberapa NIC, DHCP, atau beberapa default route, pertahankan konfigurasi yang memang diperlukan. Jangan mengganti seluruh file secara membabi buta.
+**Hal yang perlu diperhatikan:**
+
+- Sesuaikan nama interface berdasarkan hasil `ip -br addr`.
+- Ganti `10.28.95.38/24` sesuai IP dan subnet Server A yang digunakan.
+- Sesuaikan DNS pertama dengan IP Server A apabila BIND9 berjalan pada Server A.
+- DNS publik `8.8.8.8` dan `1.1.1.1` merupakan contoh resolver tambahan.
+- Konfigurasi ini tidak menetapkan default gateway secara eksplisit. Pastikan default route berasal dari konfigurasi jaringan yang memang digunakan, misalnya DHCP pada interface lain.
+
+Jangan menyalin konfigurasi secara langsung jika susunan NIC, DHCP, gateway, atau subnet pada lingkungan berbeda.
 
 ### 7.4. Validasi dan terapkan Netplan
 
