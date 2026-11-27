@@ -131,8 +131,8 @@
       "gridPos": {"h": 8, "w": 24, "x": 0, "y": 11},
       "datasource": {"type": "prometheus", "uid": "prometheus-peer"},
       "targets": [
-        {"expr": "rate(node_network_receive_bytes_total{job=\"self_node_exporter\",device!~\"lo|docker.*|veth.*\"}[5m])", "legendFormat": "{{device}} RX", "refId": "A"},
-        {"expr": "rate(node_network_transmit_bytes_total{job=\"self_node_exporter\",device!~\"lo|docker.*|veth.*\"}[5m])", "legendFormat": "{{device}} TX", "refId": "B"}
+        {"expr": "rate(node_network_receive_bytes_total{job=\"self_node_exporter\",device!~\"lo|docker.*|veth.*\"}[5m])", "legendFormat": "{{ '{{device}}' }} RX", "refId": "A"},
+        {"expr": "rate(node_network_transmit_bytes_total{job=\"self_node_exporter\",device!~\"lo|docker.*|veth.*\"}[5m])", "legendFormat": "{{ '{{device}}' }} TX", "refId": "B"}
       ],
       "fieldConfig": {"defaults": {"unit": "Bps", "custom": {"drawStyle": "line", "lineWidth": 2, "fillOpacity": 12, "showPoints": "never"}}},
       "options": {"legend": {"displayMode": "list", "placement": "bottom", "showLegend": true}, "tooltip": {"mode": "multi"}}
