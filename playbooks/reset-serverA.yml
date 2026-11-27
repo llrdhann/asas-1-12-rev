@@ -105,6 +105,7 @@
       args:
         executable: /bin/bash
       changed_when: false
+
     - name: Require the existing Moodle Compose definition
       ansible.builtin.stat:
         path: "{{ moodle_root }}/docker-compose.yml"
@@ -152,6 +153,28 @@
       register: reset_compose_down
       changed_when: reset_compose_down.rc == 0
 
+    - name: Remove old Moodle PHP image
+      ansible.builtin.command:
+        argv:
+          - docker
+          - image
+          - rm
+          - moodle-servera-php:8.3
+      register: remove_old_moodle_php_image
+      changed_when: remove_old_moodle_php_image.rc == 0
+      failed_when: >
+        remove_old_moodle_php_image.rc != 0 and
+        'No such image' not in
+        (remove_old_moodle_php_image.stderr | default(''))
+
+    - name: Remove Moodle runtime configuration files
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: absent
+      loop:
+        - "{{ moodle_root }}/.env"
+        - "{{ moodle_root }}/docker-compose.yml"
+
     - name: Remove live Moodle source directory
       ansible.builtin.file:
         path: "{{ moodle_code_dir }}"
@@ -185,4 +208,4 @@
           - "Live source dan moodledata telah dibersihkan."
           - "Backup, website, PHP build context, Nginx config, SSL, template, dan repository dipertahankan."
           - "Docker Engine, IP, SSH, DNS, dan monitoring tidak disentuh."
-          - "File runtime .env dan docker-compose.yml dipertahankan; playbook deployment akan merender ulang konfigurasi yang dikelolanya."
+          - "File runtime .env dan docker-compose.yml telah dihapus; playbook deployment akan membuat ulang keduanya."

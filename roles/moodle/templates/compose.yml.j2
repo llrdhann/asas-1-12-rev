@@ -64,7 +64,7 @@ services:
     networks:
       moodle_net:
         aliases:
-          - e-learning.lingga-ramadhan.net
+          - "{{ bind_test_record }}.{{ bind_zone_name }}"
 
 networks:
   moodle_net:

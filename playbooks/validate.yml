@@ -17,13 +17,17 @@
       changed_when: false
 
     - name: Query local forward DNS
-      ansible.builtin.command: "dig +short @127.0.0.1 e-learning.lingga-ramadhan.net A"
+      ansible.builtin.command: "dig +short @127.0.0.1 {{ bind_test_record }}.{{ bind_zone_name }} A"
       register: dns_result
       changed_when: false
 
     - name: Assert DNS resolves to configured Server A IP
       ansible.builtin.assert:
-        that: server_ip in dns_result.stdout_lines
+        that:
+          - server_ip in dns_result.stdout_lines
+        fail_msg: "DNS {{ bind_test_record }}.{{ bind_zone_name }} tidak mengarah ke {{ server_ip }}"
+        success_msg: "DNS berhasil mengarah ke {{ server_ip }}"
+
 
     - name: Verify Docker Compose config
       ansible.builtin.command:
@@ -46,25 +50,19 @@
 
     - name: Verify Moodle HTTPS endpoint locally with correct Host and TLS SNI
       ansible.builtin.command:
-        argv:
-          - curl
-          - --silent
-          - --show-error
-          - --output
-          - /dev/null
-          - --write-out
-          - "%{http_code}"
-          - --max-time
-          - "15"
-          - --insecure
-          - --resolve
-          - "e-learning.lingga-ramadhan.net:443:127.0.0.1"
-          - "https://e-learning.lingga-ramadhan.net/"
-      register: moodle_https_status
+        cmd: >-
+          curl --silent --show-error
+          --output /dev/null
+          --write-out "%{http_code}"
+          --max-time 15
+          --insecure
+          --resolve "{{ bind_test_record }}.{{ bind_zone_name }}:443:127.0.0.1"
+          "https://{{ bind_test_record }}.{{ bind_zone_name }}/"
+      register: moodle_https_result
       changed_when: false
 
     - name: Assert Moodle HTTPS returned an expected application status
       ansible.builtin.assert:
         that:
-          - moodle_https_status.stdout | int in [200, 301, 302, 303, 403]
-        fail_msg: "Moodle HTTPS returned HTTP {{ moodle_https_status.stdout }} on Server A."
+          - moodle_https_result.stdout | int in [200, 301, 302, 303, 403]
+        fail_msg: "Moodle HTTPS returned HTTP {{ moodle_https_result.stdout }} on Server A."

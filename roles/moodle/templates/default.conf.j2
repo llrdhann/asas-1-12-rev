@@ -1,29 +1,43 @@
 server {
     listen 80;
-    server_name lingga-ramadhan.net www.lingga-ramadhan.net e-learning.lingga-ramadhan.net;
+    server_name {{ bind_zone_name }} www.{{ bind_zone_name }} {{ bind_test_record }}.{{ bind_zone_name }};
     return 301 https://$host$request_uri;
 }
 
 server {
     listen 443 ssl;
-    server_name lingga-ramadhan.net www.lingga-ramadhan.net;
-    ssl_certificate /etc/nginx/ssl/lingga-ramadhan.net.crt;
-    ssl_certificate_key /etc/nginx/ssl/lingga-ramadhan.net.key;
+    server_name {{ bind_zone_name }} www.{{ bind_zone_name }};
+
+    ssl_certificate /etc/nginx/ssl/{{ bind_zone_name }}.crt;
+    ssl_certificate_key /etc/nginx/ssl/{{ bind_zone_name }}.key;
+
     root /var/www/web;
     index index.html;
-    location / { try_files $uri $uri/ =404; }
+
+    location / {
+        try_files $uri $uri/ =404;
+    }
 }
 
 server {
     listen 443 ssl;
-    server_name e-learning.lingga-ramadhan.net;
-    ssl_certificate /etc/nginx/ssl/lingga-ramadhan.net.crt;
-    ssl_certificate_key /etc/nginx/ssl/lingga-ramadhan.net.key;
+    server_name {{ bind_test_record }}.{{ bind_zone_name }};
+
+    ssl_certificate /etc/nginx/ssl/{{ bind_zone_name }}.crt;
+    ssl_certificate_key /etc/nginx/ssl/{{ bind_zone_name }}.key;
+
     root /var/www/html/public;
     index index.php;
     client_max_body_size 256M;
-    location / { try_files $uri $uri/ /r.php?$query_string; }
-    location = /lib/exampleshimroute2.php { try_files "" /r.php?$query_string; }
+
+    location / {
+        try_files $uri $uri/ /r.php?$query_string;
+    }
+
+    location = /lib/exampleshimroute2.php {
+        try_files "" /r.php?$query_string;
+    }
+
     location ~ [^/]\.php(/|$) {
         include fastcgi_params;
         fastcgi_split_path_info ^(.+?\.php)(/.*)$;

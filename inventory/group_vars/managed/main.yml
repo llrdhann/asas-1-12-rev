@@ -25,8 +25,8 @@ moodle_ssl_dir: /opt/moodle/ssl
 moodle_db_name: moodle
 moodle_db_user: moodle
 moodle_db_host: moodle-db
-moodle_wwwroot: "https://e-learning.lingga-ramadhan.net"
-moodle_php_image: "moodle-servera-php:8.3"
+moodle_wwwroot: "https://{{ moodle_subdomain }}.{{ base_domain }}"
+moodle_php_image: "moodle-php:8.3"
 moodle_nginx_image: "nginx:alpine"
 mariadb_image: "mariadb:10.11"
 mysql_exporter_image: "prom/mysqld-exporter:v0.17.2"
@@ -50,24 +50,26 @@ ssl_mode: self_signed
 ssl_validity_days: 365
 ssl_force_regenerate: false
 ssl_domains:
-  - lingga-ramadhan.net
-  - www.lingga-ramadhan.net
-  - e-learning.lingga-ramadhan.net
-ssl_cert_file: "{{ moodle_ssl_dir }}/lingga-ramadhan.net.crt"
-ssl_key_file: "{{ moodle_ssl_dir }}/lingga-ramadhan.net.key"
+  - "{{ base_domain }}"
+  - "www.{{ base_domain }}"
+  - "{{ moodle_subdomain }}.{{ base_domain }}"
+ssl_cert_file: "{{ moodle_ssl_dir }}/{{ base_domain }}.crt"
+ssl_key_file: "{{ moodle_ssl_dir }}/{{ base_domain }}.key"
 
 # Bind9 authoritative zones; recursion is restricted to the local subnet.
 bind_package: bind9
 bind_service: named
 bind_config_dir: /etc/bind
 
-bind_zone_name: lingga-ramadhan.net
+bind_zone_name: "{{ base_domain }}"
+
+bind_test_record: "{{ moodle_subdomain }}"
 
 bind_network_cidr: "{{ server_network_cidr }}"
 
 bind_reverse_zone: "{{ server_ip.split('.')[2] }}.{{ server_ip.split('.')[1] }}.{{ server_ip.split('.')[0] }}.in-addr.arpa"
 
-bind_zone_file: /etc/bind/db.lingga-ramadhan.net
+bind_zone_file: "/etc/bind/db.{{ bind_zone_name }}"
 
 bind_reverse_file: "/etc/bind/db.{{ server_ip.split('.')[0] }}.{{ server_ip.split('.')[1] }}.{{ server_ip.split('.')[2] }}"
 
@@ -75,8 +77,8 @@ bind_forwarders: []
 bind_zone_serial: "{{ ansible_date_time.date | replace('-', '') }}01"
 
 website_server_names:
-  - lingga-ramadhan.net
-  - www.lingga-ramadhan.net
+  - "{{ base_domain }}"
+  - "www.{{ base_domain }}"
 
 # Monitoring runs on serverA and scrapes serverB as an external peer.
 node_exporter_port: 9100
@@ -105,7 +107,7 @@ peer_ip: "{{ hostvars[peer_host].server_ip }}"
 # Server B is owned by a friend. This repository only scrapes its existing
 # monitoring endpoints; it does not install or change any service on Server B.
 # Set this to the exact public/internal Moodle URL reachable from Server A.
-peer_moodle_url: ""
+peer_moodle_url: "https://e-learning.lingskuy-ramadhan.net"
 peer_moodle_monitor_enabled: false
 peer_docker_monitor_enabled: false
 peer_mariadb_monitor_enabled: false

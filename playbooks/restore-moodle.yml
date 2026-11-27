@@ -218,7 +218,30 @@
           - mariadb
         state: present
 
-    - name: Wait for MariaDB to become ready
+    - name: Wait for MariaDB server process
+      ansible.builtin.command:
+        argv:
+          - docker
+          - exec
+          - "{{ moodle_container_db }}"
+          - mariadb-admin
+          - ping
+          - --silent
+      register: mariadb_ready
+      retries: 30
+      delay: 5
+      until: mariadb_ready.rc == 0
+      changed_when: false
+
+    - name: Verify MariaDB root password is defined
+      ansible.builtin.assert:
+        that:
+          - vault_moodle_db_root_password is defined
+          - vault_moodle_db_root_password | length > 0
+        fail_msg: "Password root MariaDB dari Vault tidak tersedia."
+      no_log: true
+
+    - name: Wait for MariaDB root authentication
       ansible.builtin.command:
         argv:
           - docker
@@ -226,14 +249,15 @@
           - -e
           - "MYSQL_PWD={{ vault_moodle_db_root_password }}"
           - "{{ moodle_container_db }}"
-          - mariadb-admin
+          - mariadb
           - -uroot
-          - ping
-          - --silent
-      register: mariadb_ready
-      retries: 30
+          - -N
+          - -e
+          - "SELECT 1"
+      register: mariadb_auth
+      retries: 12
       delay: 5
-      until: mariadb_ready.rc == 0
+      until: mariadb_auth.rc == 0 and mariadb_auth.stdout | trim == '1'
       changed_when: false
       no_log: true
 
@@ -260,12 +284,11 @@
           - docker
           - exec
           - -e
-          - "MYSQL_PWD={{ vault_moodle_db_password }}"
+          - "MYSQL_PWD={{ vault_moodle_db_root_password }}"
           - "{{ moodle_container_db }}"
           - mariadb
           - -N
-          - -u
-          - "{{ moodle_db_user }}"
+          - -uroot
           - -e
           - "SHOW TABLES"
           - "{{ moodle_db_name }}"

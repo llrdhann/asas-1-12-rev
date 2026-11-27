@@ -27,7 +27,7 @@ scrape_configs:
     params:
       module: [http_2xx_self]
     static_configs:
-      - targets: ["https://127.0.0.1"]
+      - targets: ["https://{{ bind_test_record }}.{{ bind_zone_name }}"]
         labels:
           service: "moodle"
     relabel_configs:

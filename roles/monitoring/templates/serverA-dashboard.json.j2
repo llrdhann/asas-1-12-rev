@@ -1,20 +1,161 @@
+
 {
-  "annotations": {"list": []},
-  "editable": true,
   "id": null,
-  "title": "Server A - Moodle & Database",
   "uid": "servera-moodle-db",
+  "title": "Server A - Infrastructure & Services",
+  "tags": ["ansible", "infrastructure", "moodle"],
+  "timezone": "browser",
   "schemaVersion": 39,
-  "version": 1,
-  "refresh": "15s",
-  "time": {"from": "now-6h", "to": "now"},
+  "version": 3,
+  "refresh": "30s",
+  "time": {
+    "from": "now-6h",
+    "to": "now"
+  },
+  "annotations": {
+    "list": []
+  },
+  "editable": true,
+  "graphTooltip": 1,
   "panels": [
-    {"id": 1, "type": "stat", "title": "Server A Node Exporter", "gridPos": {"h": 4, "w": 6, "x": 0, "y": 0}, "datasource": {"type": "prometheus", "uid": "prometheus-peer"}, "targets": [{"expr": "up{job=\"self_node_exporter\"}", "refId": "A", "instant": true}]},
-    {"id": 2, "type": "stat", "title": "Moodle HTTPS", "gridPos": {"h": 4, "w": 6, "x": 6, "y": 0}, "datasource": {"type": "prometheus", "uid": "prometheus-peer"}, "targets": [{"expr": "probe_success{job=\"self_moodle_http\"}", "refId": "A", "instant": true}]},
-    {"id": 3, "type": "stat", "title": "MariaDB Connection", "gridPos": {"h": 4, "w": 6, "x": 12, "y": 0}, "datasource": {"type": "prometheus", "uid": "prometheus-peer"}, "targets": [{"expr": "mysql_up{job=\"self_mariadb\"}", "refId": "A", "instant": true}]},
-    {"id": 4, "type": "timeseries", "title": "CPU Usage (%)", "gridPos": {"h": 8, "w": 12, "x": 0, "y": 4}, "datasource": {"type": "prometheus", "uid": "prometheus-peer"}, "targets": [{"expr": "100 - avg by(instance) (rate(node_cpu_seconds_total{job=\"self_node_exporter\",mode=\"idle\"}[5m])) * 100", "legendFormat": "CPU", "refId": "A"}]},
-    {"id": 5, "type": "timeseries", "title": "Memory Usage (%)", "gridPos": {"h": 8, "w": 12, "x": 12, "y": 4}, "datasource": {"type": "prometheus", "uid": "prometheus-peer"}, "targets": [{"expr": "100 * (1 - node_memory_MemAvailable_bytes{job=\"self_node_exporter\"} / node_memory_MemTotal_bytes{job=\"self_node_exporter\"})", "legendFormat": "RAM", "refId": "A"}]},
-    {"id": 6, "type": "timeseries", "title": "MariaDB Threads Connected", "gridPos": {"h": 8, "w": 12, "x": 0, "y": 12}, "datasource": {"type": "prometheus", "uid": "prometheus-peer"}, "targets": [{"expr": "mysql_global_status_threads_connected{job=\"self_mariadb\"}", "legendFormat": "Connected", "refId": "A"}]},
-    {"id": 7, "type": "timeseries", "title": "MariaDB Queries / sec", "gridPos": {"h": 8, "w": 12, "x": 12, "y": 12}, "datasource": {"type": "prometheus", "uid": "prometheus-peer"}, "targets": [{"expr": "rate(mysql_global_status_queries{job=\"self_mariadb\"}[5m])", "legendFormat": "Queries/s", "refId": "A"}]}
+    {
+      "id": 1,
+      "type": "stat",
+      "title": "Node Exporter",
+      "gridPos": {"h": 4, "w": 6, "x": 0, "y": 0},
+      "datasource": {"type": "prometheus", "uid": "prometheus-peer"},
+      "targets": [{"expr": "up{job=\"self_node_exporter\"}", "refId": "A", "instant": true}],
+      "fieldConfig": {
+        "defaults": {
+          "noValue": "N/A",
+          "mappings": [{"type": "value", "options": {
+            "0": {"text": "DOWN", "color": "red"},
+            "1": {"text": "UP", "color": "green"}
+          }}]
+        }
+      },
+      "options": {"colorMode": "background", "graphMode": "none", "reduceOptions": {"calcs": ["lastNotNull"], "values": false}}
+    },
+    {
+      "id": 2,
+      "type": "stat",
+      "title": "Moodle HTTPS",
+      "gridPos": {"h": 4, "w": 6, "x": 6, "y": 0},
+      "datasource": {"type": "prometheus", "uid": "prometheus-peer"},
+      "targets": [{"expr": "probe_success{job=\"self_moodle_http\"}", "refId": "A", "instant": true}],
+      "fieldConfig": {
+        "defaults": {
+          "noValue": "N/A",
+          "mappings": [{"type": "value", "options": {
+            "0": {"text": "DOWN", "color": "red"},
+            "1": {"text": "UP", "color": "green"}
+          }}]
+        }
+      },
+      "options": {"colorMode": "background", "graphMode": "none", "reduceOptions": {"calcs": ["lastNotNull"], "values": false}}
+    },
+    {
+      "id": 3,
+      "type": "stat",
+      "title": "MariaDB",
+      "gridPos": {"h": 4, "w": 6, "x": 12, "y": 0},
+      "datasource": {"type": "prometheus", "uid": "prometheus-peer"},
+      "targets": [{"expr": "mysql_up{job=\"self_mariadb\"}", "refId": "A", "instant": true}],
+      "fieldConfig": {
+        "defaults": {
+          "noValue": "N/A",
+          "mappings": [{"type": "value", "options": {
+            "0": {"text": "DOWN", "color": "red"},
+            "1": {"text": "UP", "color": "green"}
+          }}]
+        }
+      },
+      "options": {"colorMode": "background", "graphMode": "none", "reduceOptions": {"calcs": ["lastNotNull"], "values": false}}
+    },
+    {
+      "id": 4,
+      "type": "stat",
+      "title": "Active Alerts",
+      "gridPos": {"h": 4, "w": 6, "x": 18, "y": 0},
+      "datasource": {"type": "prometheus", "uid": "prometheus-peer"},
+      "targets": [{"expr": "count(ALERTS{alertstate=\"firing\",host=\"serverA\"}) or vector(0)", "refId": "A", "instant": true}],
+      "fieldConfig": {"defaults": {"noValue": "N/A", "unit": "short"}},
+      "options": {"colorMode": "background", "graphMode": "none", "reduceOptions": {"calcs": ["lastNotNull"], "values": false}}
+    },
+    {
+      "id": 5,
+      "type": "gauge",
+      "title": "CPU Usage",
+      "gridPos": {"h": 7, "w": 8, "x": 0, "y": 4},
+      "datasource": {"type": "prometheus", "uid": "prometheus-peer"},
+      "targets": [{"expr": "100 - avg(rate(node_cpu_seconds_total{job=\"self_node_exporter\",mode=\"idle\"}[5m])) * 100", "refId": "A"}],
+      "fieldConfig": {"defaults": {"unit": "percent", "min": 0, "max": 100, "thresholds": {"mode": "absolute", "steps": [
+        {"color": "green", "value": null},
+        {"color": "yellow", "value": 70},
+        {"color": "red", "value": 85}
+      ]}}},
+      "options": {"showThresholdLabels": false, "showThresholdMarkers": true}
+    },
+    {
+      "id": 6,
+      "type": "gauge",
+      "title": "Memory Usage",
+      "gridPos": {"h": 7, "w": 8, "x": 8, "y": 4},
+      "datasource": {"type": "prometheus", "uid": "prometheus-peer"},
+      "targets": [{"expr": "100 * (1 - node_memory_MemAvailable_bytes{job=\"self_node_exporter\"} / node_memory_MemTotal_bytes{job=\"self_node_exporter\"})", "refId": "A"}],
+      "fieldConfig": {"defaults": {"unit": "percent", "min": 0, "max": 100, "thresholds": {"mode": "absolute", "steps": [
+        {"color": "green", "value": null},
+        {"color": "yellow", "value": 80},
+        {"color": "red", "value": 90}
+      ]}}},
+      "options": {"showThresholdLabels": false, "showThresholdMarkers": true}
+    },
+    {
+      "id": 7,
+      "type": "gauge",
+      "title": "Root Disk Usage",
+      "gridPos": {"h": 7, "w": 8, "x": 16, "y": 4},
+      "datasource": {"type": "prometheus", "uid": "prometheus-peer"},
+      "targets": [{"expr": "100 * (1 - node_filesystem_avail_bytes{job=\"self_node_exporter\",mountpoint=\"/\",fstype!~\"tmpfs|overlay\"} / node_filesystem_size_bytes{job=\"self_node_exporter\",mountpoint=\"/\",fstype!~\"tmpfs|overlay\"})", "refId": "A"}],
+      "fieldConfig": {"defaults": {"unit": "percent", "min": 0, "max": 100, "thresholds": {"mode": "absolute", "steps": [
+        {"color": "green", "value": null},
+        {"color": "yellow", "value": 80},
+        {"color": "red", "value": 90}
+      ]}}},
+      "options": {"showThresholdLabels": false, "showThresholdMarkers": true}
+    },
+    {
+      "id": 8,
+      "type": "timeseries",
+      "title": "Network Traffic - RX / TX",
+      "gridPos": {"h": 8, "w": 24, "x": 0, "y": 11},
+      "datasource": {"type": "prometheus", "uid": "prometheus-peer"},
+      "targets": [
+        {"expr": "rate(node_network_receive_bytes_total{job=\"self_node_exporter\",device!~\"lo|docker.*|veth.*\"}[5m])", "legendFormat": "{{device}} RX", "refId": "A"},
+        {"expr": "rate(node_network_transmit_bytes_total{job=\"self_node_exporter\",device!~\"lo|docker.*|veth.*\"}[5m])", "legendFormat": "{{device}} TX", "refId": "B"}
+      ],
+      "fieldConfig": {"defaults": {"unit": "Bps", "custom": {"drawStyle": "line", "lineWidth": 2, "fillOpacity": 12, "showPoints": "never"}}},
+      "options": {"legend": {"displayMode": "list", "placement": "bottom", "showLegend": true}, "tooltip": {"mode": "multi"}}
+    },
+    {
+      "id": 9,
+      "type": "timeseries",
+      "title": "Moodle Response Time",
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 19},
+      "datasource": {"type": "prometheus", "uid": "prometheus-peer"},
+      "targets": [{"expr": "probe_duration_seconds{job=\"self_moodle_http\"}", "legendFormat": "Response", "refId": "A"}],
+      "fieldConfig": {"defaults": {"unit": "s", "custom": {"drawStyle": "line", "lineWidth": 2, "fillOpacity": 12}}},
+      "options": {"legend": {"displayMode": "list", "placement": "bottom"}}
+    },
+    {
+      "id": 10,
+      "type": "timeseries",
+      "title": "MariaDB Active Connections",
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 19},
+      "datasource": {"type": "prometheus", "uid": "prometheus-peer"},
+      "targets": [{"expr": "mysql_global_status_threads_connected{job=\"self_mariadb\"}", "legendFormat": "Connections", "refId": "A"}],
+      "fieldConfig": {"defaults": {"unit": "short", "custom": {"drawStyle": "line", "lineWidth": 2, "fillOpacity": 12}}},
+      "options": {"legend": {"displayMode": "list", "placement": "bottom"}}
+    }
   ]
 }
