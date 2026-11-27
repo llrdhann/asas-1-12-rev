@@ -1224,3 +1224,44 @@ Lakukan pengujian bertahap:
 8. Pengujian manual.
 
 Simpan output setiap tahap untuk dokumentasi dan audit project.
+
+### Catatan Password Ansible (Vault dan Sudo)
+
+Pada konfigurasi proyek ini, Server A menggunakan password untuk privilege escalation (`sudo`). Oleh karena itu, saat menjalankan playbook yang membutuhkan `become: true`, gunakan dua opsi berikut:
+
+- `--ask-vault-pass`: meminta password Ansible Vault untuk membaca variabel rahasia.
+- `--ask-become-pass` atau `-K`: meminta password sudo Linux pada Server A.
+
+**Contoh menjalankan seluruh deployment:**
+
+```bash
+ansible-playbook -i inventory/hosts.ini playbooks/site.yml \
+  --limit serverA \
+  --ask-vault-pass \
+  --ask-become-pass
+```
+
+**Contoh menjalankan tag tertentu:**
+
+```bash
+ansible-playbook -i inventory/hosts.ini playbooks/site.yml \
+  --limit serverA \
+  --tags monitoring \
+  --ask-vault-pass \
+  --ask-become-pass
+```
+
+```bash
+ansible-playbook -i inventory/hosts.ini playbooks/site.yml \
+  --limit serverA \
+  --tags infrastructure \
+  --ask-vault-pass \
+  --ask-become-pass
+```
+
+Ketika perintah dijalankan, Ansible akan meminta dua password secara terpisah:
+
+1. `Vault password:` — masukkan password Ansible Vault.
+2. `BECOME password:` — masukkan password sudo Server A.
+
+**Catatan:** Opsi `--ask-become-pass` diperlukan ketika task menggunakan privilege escalation (`become`). Jika playbook atau task tidak membutuhkan `become`, opsi tersebut tidak wajib digunakan.
