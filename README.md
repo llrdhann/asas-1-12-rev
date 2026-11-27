@@ -294,6 +294,9 @@ vault_grafana_admin_password: "PASSWORD_RANDOM"
 vault_moodle_db_root_password: "PASSWORD_RANDOM"
 vault_moodle_db_password: "PASSWORD_RANDOM"
 vault_mysql_exporter_password: "PASSWORD_RANDOM"
+vault_smtp_username: ".."
+vault_smtp_password: "..."
+vault_alert_email_to: ".."
 ```
 
 Enkripsi:
@@ -461,7 +464,7 @@ Semua perintah dijalankan dari root repository di control node.
 
 ```bash
 ansible-playbook -i inventory/hosts.ini playbooks/site.yml \
-  --limit serverA --tags infrastructure --ask-vault-pass
+  --limit serverA --tags infrastructure --ask-vault-pass --ask-become-pass
 ```
 
 Tahap ini menjalankan role infrastruktur yang memiliki tag `infrastructure`, yaitu:
@@ -527,7 +530,7 @@ Hanya setelah restore berhasil:
 
 ```bash
 ansible-playbook -i inventory/hosts.ini playbooks/site.yml \
-  --limit serverA --tags moodle --ask-vault-pass
+  --limit serverA --tags moodle --ask-vault-pass --ask-become-pass
 ```
 
 Role Moodle akan menjalankan konfigurasi aplikasi, membangun image PHP `moodle-php:8.3`, membuat konfigurasi Moodle, dan menjalankan layanan terkait.
