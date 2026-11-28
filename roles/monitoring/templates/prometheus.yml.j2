@@ -21,6 +21,20 @@ scrape_configs:
         labels:
           peer: "serverA"
 
+  # Server A Docker Engine Metrics
+  - job_name: "self_docker"
+    static_configs:
+      - targets: ["{{ server_ip }}:{{ docker_metrics_port }}"]
+        labels:
+          host: "serverA"
+
+  # Server A cAdvisor
+  - job_name: "self_cadvisor"
+    static_configs:
+      - targets: ["{{ server_ip }}:{{ cadvisor_port }}"]
+        labels:
+          host: "serverA"
+
   # Local Moodle HTTP/TLS probe through Blackbox Exporter. Probe loopback with the correct Host/SNI.
   - job_name: "self_moodle_http"
     metrics_path: /probe
@@ -84,4 +98,13 @@ scrape_configs:
         target_label: instance
       - target_label: __address__
         replacement: "{{ server_ip }}:{{ blackbox_exporter_port }}"
+{% endif %}
+
+{% if peer_cadvisor_monitor_enabled | bool %}
+  # Server B cAdvisor
+  - job_name: "peer_cadvisor"
+    static_configs:
+      - targets: ["{{ peer_ip }}:{{ cadvisor_port }}"]
+        labels:
+          peer: "{{ peer_host }}"
 {% endif %}

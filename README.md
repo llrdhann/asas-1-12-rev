@@ -706,8 +706,6 @@ network:
       nameservers:
         addresses:
           - 10.28.95.38
-          - 8.8.8.8
-          - 1.1.1.1
         search:
           - "~."
 ```
@@ -945,6 +943,24 @@ ansible-playbook -i inventory/hosts.ini playbooks/reset-monitoring.yml \
 ```
 
 Jangan menjalankan reset penuh jika data historis masih diperlukan.
+
+### Important: MySQL Exporter After Full Monitoring Reset
+
+The full monitoring reset removes the `moodle-mysql-exporter` container.
+This exporter is managed by the Moodle Docker Compose stack, not by the
+monitoring role.
+
+The Moodle application, MariaDB container, and Moodle volumes are preserved
+during the reset. However, the MySQL exporter must be recreated by running
+the Moodle deployment playbook:
+
+```bash
+ansible-playbook -i inventory/hosts.ini playbooks/site.yml \
+  --limit serverA --ask-vault-pass --ask-become-pass --tags moodle
+```
+
+**Catatan:** ini berlaku untuk `reset_mode=full`, karena mode `config` tidak menghapus container exporter.
+
 
 ---
 

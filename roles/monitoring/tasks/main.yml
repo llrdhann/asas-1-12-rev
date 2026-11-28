@@ -376,3 +376,22 @@
   changed_when: false
   failed_when: false
   when: peer_mariadb_monitor_enabled | bool
+
+# cAdvisor Container
+- name: Run cAdvisor container
+  community.docker.docker_container:
+    name: cadvisor
+    image: "{{ cadvisor_image }}"
+    state: started
+    restart_policy: unless-stopped
+    privileged: true
+    published_ports:
+      - "{{ server_ip }}:{{ cadvisor_port }}:8080"
+    volumes:
+      - "/:/rootfs:ro"
+      - "/var/run:/var/run:ro"
+      - "/sys:/sys:ro"
+      - "/var/lib/docker:/var/lib/docker:ro"
+      - "/dev/disk:/dev/disk:ro"
+    devices:
+      - "/dev/kmsg:/dev/kmsg"

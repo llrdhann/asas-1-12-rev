@@ -40,7 +40,7 @@ services:
       - "--config.my-cnf=/etc/mysql-exporter/.my.cnf"
       - "--web.listen-address=:9104"
     ports:
-      - "127.0.0.1:{{ mysql_exporter_port }}:9104"
+      - "{{ server_ip }}:{{ mysql_exporter_port }}:9104"
     volumes:
       - ./mysql-exporter.cnf:/etc/mysql-exporter/.my.cnf:ro
     depends_on:

@@ -29,6 +29,7 @@ moodle_wwwroot: "https://{{ moodle_subdomain }}.{{ base_domain }}"
 moodle_php_image: "moodle-php:8.3"
 moodle_nginx_image: "nginx:alpine"
 mariadb_image: "mariadb:10.11"
+cadvisor_image: "ghcr.io/google/cadvisor:v0.61.1"
 mysql_exporter_image: "prom/mysqld-exporter:v0.17.2"
 mysql_exporter_user: "moodle_exporter"
 moodle_compose_project: moodle
@@ -88,6 +89,7 @@ blackbox_exporter_port: 9115
 grafana_port: 3000
 docker_metrics_port: 9323
 mysql_exporter_port: 9104
+cadvisor_port: 8080
 
 prometheus_user: prometheus
 node_exporter_user: node_exporter
@@ -111,6 +113,7 @@ peer_moodle_url: "https://e-learning.lingskuy-ramadhan.net"
 peer_moodle_monitor_enabled: false
 peer_docker_monitor_enabled: false
 peer_mariadb_monitor_enabled: false
+peer_cadvisor_monitor_enabled: false
 peer_node_exporter_target: "{{ peer_ip }}:{{ node_exporter_port }}"
 peer_mariadb_exporter_target: "{{ peer_ip }}:{{ mysql_exporter_port }}"
 

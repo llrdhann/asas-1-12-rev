@@ -6,7 +6,7 @@
   "tags": ["ansible", "infrastructure", "moodle"],
   "timezone": "browser",
   "schemaVersion": 39,
-  "version": 3,
+  "version": 4,
   "refresh": "30s",
   "time": {
     "from": "now-6h",
@@ -25,15 +25,10 @@
       "gridPos": {"h": 4, "w": 6, "x": 0, "y": 0},
       "datasource": {"type": "prometheus", "uid": "prometheus-peer"},
       "targets": [{"expr": "up{job=\"peer_node_exporter\"}", "refId": "A", "instant": true}],
-      "fieldConfig": {
-        "defaults": {
-          "noValue": "N/A",
-          "mappings": [{"type": "value", "options": {
-            "0": {"text": "DOWN", "color": "red"},
-            "1": {"text": "UP", "color": "green"}
-          }}]
-        }
-      },
+      "fieldConfig": {"defaults": {"noValue": "N/A", "mappings": [{"type": "value", "options": {
+        "0": {"text": "DOWN", "color": "red"},
+        "1": {"text": "UP", "color": "green"}
+      }}]}},
       "options": {"colorMode": "background", "graphMode": "none", "reduceOptions": {"calcs": ["lastNotNull"], "values": false}}
     },
     {
@@ -43,15 +38,10 @@
       "gridPos": {"h": 4, "w": 6, "x": 6, "y": 0},
       "datasource": {"type": "prometheus", "uid": "prometheus-peer"},
       "targets": [{"expr": "probe_success{job=\"peer_moodle_http\"}", "refId": "A", "instant": true}],
-      "fieldConfig": {
-        "defaults": {
-          "noValue": "N/A",
-          "mappings": [{"type": "value", "options": {
-            "0": {"text": "DOWN", "color": "red"},
-            "1": {"text": "UP", "color": "green"}
-          }}]
-        }
-      },
+      "fieldConfig": {"defaults": {"noValue": "N/A", "mappings": [{"type": "value", "options": {
+        "0": {"text": "DOWN", "color": "red"},
+        "1": {"text": "UP", "color": "green"}
+      }}]}},
       "options": {"colorMode": "background", "graphMode": "none", "reduceOptions": {"calcs": ["lastNotNull"], "values": false}}
     },
     {
@@ -61,15 +51,10 @@
       "gridPos": {"h": 4, "w": 6, "x": 12, "y": 0},
       "datasource": {"type": "prometheus", "uid": "prometheus-peer"},
       "targets": [{"expr": "mysql_up{job=\"peer_mariadb\"}", "refId": "A", "instant": true}],
-      "fieldConfig": {
-        "defaults": {
-          "noValue": "N/A",
-          "mappings": [{"type": "value", "options": {
-            "0": {"text": "DOWN", "color": "red"},
-            "1": {"text": "UP", "color": "green"}
-          }}]
-        }
-      },
+      "fieldConfig": {"defaults": {"noValue": "N/A", "mappings": [{"type": "value", "options": {
+        "0": {"text": "DOWN", "color": "red"},
+        "1": {"text": "UP", "color": "green"}
+      }}]}},
       "options": {"colorMode": "background", "graphMode": "none", "reduceOptions": {"calcs": ["lastNotNull"], "values": false}}
     },
     {
@@ -156,6 +141,82 @@
       "targets": [{"expr": "mysql_global_status_threads_connected{job=\"peer_mariadb\"}", "legendFormat": "Connections", "refId": "A"}],
       "fieldConfig": {"defaults": {"unit": "short", "custom": {"drawStyle": "line", "lineWidth": 2, "fillOpacity": 12}}},
       "options": {"legend": {"displayMode": "list", "placement": "bottom"}}
+    },
+    {
+      "id": 11,
+      "type": "stat",
+      "title": "Docker Engine Status",
+      "gridPos": {"h": 4, "w": 12, "x": 0, "y": 27},
+      "datasource": {"type": "prometheus", "uid": "prometheus-peer"},
+      "targets": [{"expr": "up{job=\"peer_docker\"}", "refId": "A", "instant": true}],
+      "fieldConfig": {"defaults": {"noValue": "N/A", "mappings": [{"type": "value", "options": {
+        "0": {"text": "DOWN", "color": "red"},
+        "1": {"text": "UP", "color": "green"}
+      }}]}},
+      "options": {"colorMode": "background", "graphMode": "none", "reduceOptions": {"calcs": ["lastNotNull"], "values": false}}
+    },
+    {
+      "id": 12,
+      "type": "stat",
+      "title": "cAdvisor Status",
+      "gridPos": {"h": 4, "w": 12, "x": 12, "y": 27},
+      "datasource": {"type": "prometheus", "uid": "prometheus-peer"},
+      "targets": [{"expr": "up{job=\"peer_cadvisor\"}", "refId": "A", "instant": true}],
+      "fieldConfig": {"defaults": {"noValue": "N/A", "mappings": [{"type": "value", "options": {
+        "0": {"text": "DOWN", "color": "red"},
+        "1": {"text": "UP", "color": "green"}
+      }}]}},
+      "options": {"colorMode": "background", "graphMode": "none", "reduceOptions": {"calcs": ["lastNotNull"], "values": false}}
+    },
+    {
+      "id": 13,
+      "type": "timeseries",
+      "title": "Container CPU Usage",
+      "description": "CPU usage per container. 100% represents one CPU core fully utilized.",
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 31},
+      "datasource": {"type": "prometheus", "uid": "prometheus-peer"},
+      "targets": [{
+        "expr": "sum by (name) (rate(container_cpu_usage_seconds_total{job=\"peer_cadvisor\",image!=\"\"}[5m])) * 100",
+        "legendFormat": "{{ '{{name}}' }}",
+        "refId": "A"
+      }],
+      "fieldConfig": {"defaults": {"unit": "percent", "min": 0, "custom": {"drawStyle": "line", "lineWidth": 2, "fillOpacity": 12, "showPoints": "never"}}},
+      "options": {"legend": {"displayMode": "list", "placement": "bottom"}, "tooltip": {"mode": "multi"}}
+    },
+    {
+      "id": 14,
+      "type": "timeseries",
+      "title": "Container Memory Usage",
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 31},
+      "datasource": {"type": "prometheus", "uid": "prometheus-peer"},
+      "targets": [{
+        "expr": "container_memory_working_set_bytes{job=\"peer_cadvisor\",image!=\"\"}",
+        "legendFormat": "{{ '{{name}}' }}",
+        "refId": "A"
+      }],
+      "fieldConfig": {"defaults": {"unit": "bytes", "custom": {"drawStyle": "line", "lineWidth": 2, "fillOpacity": 12, "showPoints": "never"}}},
+      "options": {"legend": {"displayMode": "list", "placement": "bottom"}, "tooltip": {"mode": "multi"}}
+    },
+    {
+      "id": 15,
+      "type": "timeseries",
+      "title": "Container Network Traffic - RX / TX",
+      "gridPos": {"h": 8, "w": 24, "x": 0, "y": 39},
+      "datasource": {"type": "prometheus", "uid": "prometheus-peer"},
+      "targets": [
+        {
+          "expr": "sum by (name) (rate(container_network_receive_bytes_total{job=\"peer_cadvisor\",image!=\"\"}[5m]))",
+          "legendFormat": "{{ '{{name}}' }} RX",
+          "refId": "A"
+        },
+        {
+          "expr": "sum by (name) (rate(container_network_transmit_bytes_total{job=\"peer_cadvisor\",image!=\"\"}[5m]))",
+          "legendFormat": "{{ '{{name}}' }} TX",
+          "refId": "B"
+        }
+      ],
+      "fieldConfig": {"defaults": {"unit": "Bps", "custom": {"drawStyle": "line", "lineWidth": 2, "fillOpacity": 12, "showPoints": "never"}}},
+      "options": {"legend": {"displayMode": "list", "placement": "bottom", "showLegend": true}, "tooltip": {"mode": "multi"}}
     }
   ]
 }
