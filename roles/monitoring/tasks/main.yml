@@ -268,7 +268,7 @@
     - key: domain
       value: "{{ grafana_domain }}"
     - key: root_url
-      value: "http://{{ server_ip }}:{{ grafana_port }}/"
+      value: "https://{{ grafana_domain }}/"
   notify: Restart Grafana
 
 - name: Ensure Grafana provisioning directories exist

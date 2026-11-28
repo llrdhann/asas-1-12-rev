@@ -1,7 +1,17 @@
 ---
-- name: Recreate Moodle containers
+- name: Rebuild Moodle PHP image
   community.docker.docker_compose_v2:
     project_src: "{{ moodle_root }}"
     state: present
     build: always
   no_log: true
+
+- name: Apply Moodle Compose stack
+  community.docker.docker_compose_v2:
+    project_src: "{{ moodle_root }}"
+    state: present
+  no_log: true
+
+- name: Reload Nginx
+  ansible.builtin.command:
+    cmd: docker exec {{ moodle_container_nginx }} nginx -s reload

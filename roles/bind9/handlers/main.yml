@@ -1,9 +1,6 @@
 ---
-- name: Validate and reload Bind9
-  ansible.builtin.command: named-checkconf
-  changed_when: false
-  notify: Reload Bind9
+- name: Reload Bind9 zone
+  ansible.builtin.command: "rndc reload"
 
-- name: Reload Bind9
+- name: Reconfigure Bind9
   ansible.builtin.command: rndc reconfig
-  changed_when: true

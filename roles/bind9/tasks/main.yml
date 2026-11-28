@@ -15,7 +15,7 @@
     owner: root
     group: bind
     mode: "0644"
-  notify: Validate and reload Bind9
+  notify: Reconfigure Bind9
 
 - name: Deploy authoritative zone declarations
   ansible.builtin.template:
@@ -24,7 +24,7 @@
     owner: root
     group: bind
     mode: "0644"
-  notify: Validate and reload Bind9
+  notify: Reconfigure Bind9
 
 - name: Deploy forward DNS zone
   ansible.builtin.template:
@@ -33,7 +33,7 @@
     owner: root
     group: bind
     mode: "0644"
-  notify: Validate and reload Bind9
+  notify: Reload Bind9 zone
 
 - name: Deploy reverse DNS zone
   ansible.builtin.template:
@@ -42,7 +42,7 @@
     owner: root
     group: bind
     mode: "0644"
-  notify: Validate and reload Bind9
+  notify: Reload Bind9 zone
 
 - name: Validate Bind9 configuration before applying changes
   ansible.builtin.command: named-checkconf

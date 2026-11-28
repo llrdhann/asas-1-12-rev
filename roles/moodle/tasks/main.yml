@@ -29,7 +29,7 @@
     owner: root
     group: root
     mode: "0644"
-  notify: Recreate Moodle containers
+  notify: Rebuild Moodle PHP image
 
 - name: Copy self-signed certificate into PHP build context
   ansible.builtin.copy:
@@ -39,7 +39,7 @@
     owner: root
     group: root
     mode: "0644"
-  notify: Recreate Moodle containers
+  notify: Rebuild Moodle PHP image
 
 - name: Install Nginx virtual host configuration
   ansible.builtin.template:
@@ -48,7 +48,8 @@
     owner: root
     group: root
     mode: "0644"
-  notify: Recreate Moodle containers
+  tags: [nginx, reverse_proxy]
+  notify: Reload Nginx
 
 - name: Render protected Docker Compose environment file
   ansible.builtin.template:
@@ -58,7 +59,7 @@
     group: root
     mode: "0600"
   no_log: true
-  notify: Recreate Moodle containers
+  notify: Apply Moodle Compose stack
 
 - name: Install Docker Compose stack definition
   ansible.builtin.template:
@@ -68,7 +69,8 @@
     group: root
     mode: "0600"
   no_log: true
-  notify: Recreate Moodle containers
+  notify: Apply Moodle Compose stack
+  tags: [moodle, compose]
 
 - name: Install MariaDB exporter credentials file
   ansible.builtin.template:
@@ -78,7 +80,6 @@
     group: "65534"
     mode: "0400"
   no_log: true
-  notify: Recreate Moodle containers
 
 - name: Install least-privilege MariaDB exporter account SQL script
   ansible.builtin.template:
@@ -97,7 +98,7 @@
     group: www-data
     mode: "0640"
   no_log: true
-  notify: Recreate Moodle containers
+  notify: Apply Moodle Compose stack
 
 - name: Check that restored Moodle public entry point exists
   ansible.builtin.stat:
