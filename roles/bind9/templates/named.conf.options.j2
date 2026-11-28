@@ -1,11 +1,13 @@
 options {
     directory "/var/cache/bind";
-    listen-on { 127.0.0.1; {{ server_ip }}; };
+    listen-on { any; };
     listen-on-v6 { none; };
-    allow-query { localhost; {{ bind_network_cidr }}; };
+
+    allow-query { any; };
     recursion yes;
-    allow-recursion { localhost; {{ bind_network_cidr }}; };
-    allow-query-cache { localhost; {{ bind_network_cidr }}; };
+    allow-recursion { any; };
+    allow-query-cache { any; };
+
 {% if bind_forwarders | length > 0 %}
     forwarders {
 {% for ip in bind_forwarders %}
@@ -14,5 +16,6 @@ options {
     };
     forward only;
 {% endif %}
+
     dnssec-validation auto;
 };

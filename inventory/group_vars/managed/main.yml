@@ -74,7 +74,10 @@ bind_zone_file: "/etc/bind/db.{{ bind_zone_name }}"
 
 bind_reverse_file: "/etc/bind/db.{{ server_ip.split('.')[0] }}.{{ server_ip.split('.')[1] }}.{{ server_ip.split('.')[2] }}"
 
-bind_forwarders: []
+bind_forwarders:
+  - "1.1.1.1"
+  - "8.8.8.8"
+
 bind_zone_serial: "{{ ansible_date_time.date | replace('-', '') }}01"
 
 website_server_names:

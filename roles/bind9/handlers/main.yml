@@ -5,6 +5,5 @@
   notify: Reload Bind9
 
 - name: Reload Bind9
-  ansible.builtin.systemd:
-    name: "{{ bind_service }}"
-    state: reloaded
+  ansible.builtin.command: rndc reconfig
+  changed_when: true
